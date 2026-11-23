@@ -1,0 +1,9 @@
+[project]
+name = "signal-room-voice-agent"
+version = "0.1.0"
+description = "LiveKit Agents Python worker with ElevenLabs TTS and RPC UI orchestration for Istekhar Khan's portfolio."
+requires-python = ">=3.11"
+dependencies = [
+    "livekit-agents[elevenlabs,google,silero]~=1.8",
+    "python-dotenv>=1.0.1",
+]

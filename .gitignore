@@ -1,0 +1,28 @@
+# Secrets — never commit
+.agents/plugins/portfolio-mcp/mcp_config.json
+.env*
+!.env.example
+
+# Local agent skills (installed third-party skills)
+.agents/skills/
+
+# OS & editor
+.DS_Store
+
+# Next.js & TypeScript
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Testing & tooling
+.playwright-mcp/
+
+# Python LiveKit worker
+agent/.venv/
+agent/__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.log

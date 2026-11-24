@@ -14,6 +14,8 @@ import {
   Keyboard,
   Menu,
   Mic,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { AcousticIris } from "@/components/acoustic-iris";
@@ -26,13 +28,18 @@ import { VoiceLab } from "@/components/voice-lab";
 import { WritingSection } from "@/components/writing-section";
 import { PORTFOLIO, type VoiceTopicId } from "@/data/portfolio";
 import { useLiveKitAgent } from "@/hooks/use-livekit-agent";
-import type {
-  ArticleId,
-  HighlightTarget,
-  ProjectId,
-  ProjectTab,
-  RoleId,
-  UiAction,
+import { signalSound } from "@/lib/signal-sound";
+import {
+  AGENT_PERSONAS,
+  AGENT_VOICES,
+  type AgentPersonaId,
+  type AgentVoiceKey,
+  type ArticleId,
+  type HighlightTarget,
+  type ProjectId,
+  type ProjectTab,
+  type RoleId,
+  type UiAction,
 } from "@/lib/ui-actions";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +68,9 @@ export function PortfolioShell() {
   const [textInputOpen, setTextInputOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sfxEnabled, setSfxEnabled] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<AgentPersonaId>("representative");
+  const [selectedVoiceKey, setSelectedVoiceKey] = useState<AgentVoiceKey>("sarah");
   const [activePanel, setActivePanel] = useState<ActivePanelState>(null);
   const [selectedTopic, setSelectedTopic] = useState<VoiceTopicId>("stt");
   const [selectedRoleId, setSelectedRoleId] = useState<RoleId>("opencalls");
@@ -286,11 +296,77 @@ export function PortfolioShell() {
     { scope: rootRef }
   );
 
+  const toggleSfx = useCallback(() => {
+    setSfxEnabled((prev) => {
+      const next = !prev;
+      signalSound.setEnabled(next);
+      try {
+        window.localStorage.setItem("signal-room-sfx", next ? "1" : "0");
+      } catch {
+        // Ignore storage errors
+      }
+      showHudNotice(next ? "HUD // ACOUSTIC SFX ENABLED" : "HUD // ACOUSTIC SFX MUTED");
+      return next;
+    });
+  }, [showHudNotice]);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("signal-room-sfx") === "1") {
+        setSfxEnabled(true);
+        signalSound.setEnabled(true);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
+
+  const handleSelectPersona = useCallback(
+    async (persona: AgentPersonaId) => {
+      signalSound.playTick(700);
+      setSelectedPersona(persona);
+      const meta = AGENT_PERSONAS.find((p) => p.id === persona);
+      showHudNotice(`AGENT MODE // ${meta?.badge ?? persona.toUpperCase()}`);
+      if (livekit.connected) {
+        await livekit.disconnect();
+        await livekit.connect({
+          enableMic: livekit.micEnabled,
+          persona,
+          voiceKey: selectedVoiceKey,
+        });
+      }
+    },
+    [livekit, selectedVoiceKey, showHudNotice]
+  );
+
+  const handleSelectVoice = useCallback(
+    async (voiceKey: AgentVoiceKey) => {
+      signalSound.playTick(760);
+      setSelectedVoiceKey(voiceKey);
+      const meta = AGENT_VOICES.find((v) => v.key === voiceKey);
+      showHudNotice(`ELEVENLABS VOICE // ${(meta?.label ?? voiceKey).toUpperCase()}`);
+      if (livekit.connected) {
+        await livekit.disconnect();
+        await livekit.connect({
+          enableMic: livekit.micEnabled,
+          persona: selectedPersona,
+          voiceKey,
+        });
+      }
+    },
+    [livekit, selectedPersona, showHudNotice]
+  );
+
   const handleNavClick = useCallback(
     (id: NavId, openPopup = true) => {
       setActiveNav(id);
       setMobileMenuOpen(false);
       flashSignalBeam();
+      if (openPopup && id !== "stack") {
+        signalSound.playHudOpen();
+      } else {
+        signalSound.playTick(620);
+      }
       const el = document.getElementById(id);
       el?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -340,31 +416,51 @@ export function PortfolioShell() {
 
   const handleStartVoice = useCallback(async () => {
     setDockVisible(true);
-    showHudNotice("J.A.R.V.I.S. LINK // INITIALIZING LIVEKIT");
-    await livekit.connect({ enableMic: true });
-  }, [livekit, showHudNotice]);
+    signalSound.playVoiceLink(true);
+    const meta = AGENT_PERSONAS.find((p) => p.id === selectedPersona);
+    showHudNotice(`J.A.R.V.I.S. LINK // ${meta?.badge ?? "LIVEKIT"}`);
+    await livekit.connect({
+      enableMic: true,
+      persona: selectedPersona,
+      voiceKey: selectedVoiceKey,
+    });
+  }, [livekit, selectedPersona, selectedVoiceKey, showHudNotice]);
 
   const handleOpenTextMode = useCallback(async () => {
     setDockVisible(true);
     setTextInputOpen(true);
+    signalSound.playTick(680);
     if (livekit.serverConfigured) {
-      await livekit.connect({ enableMic: false });
+      await livekit.connect({
+        enableMic: false,
+        persona: selectedPersona,
+        voiceKey: selectedVoiceKey,
+      });
     }
-  }, [livekit]);
+  }, [livekit, selectedPersona, selectedVoiceKey]);
 
   const handleAskAbout = useCallback(
     async (prompt: string) => {
       setActivePanel(null);
       setDockVisible(true);
       setTextInputOpen(true);
+      signalSound.playTick(740);
       showHudNotice("HUD // ROUTING QUERY TO LIVEKIT AGENT");
+      if (!livekit.connected && livekit.serverConfigured) {
+        await livekit.connect({
+          enableMic: false,
+          persona: selectedPersona,
+          voiceKey: selectedVoiceKey,
+        });
+      }
       await livekit.sendTextMessage(prompt);
     },
-    [livekit, showHudNotice]
+    [livekit, selectedPersona, selectedVoiceKey, showHudNotice]
   );
 
   const handleClosePanel = () => {
     const closingName = activePanel?.kind ?? "none";
+    signalSound.playHudClose();
     setActivePanel(null);
     livekit.notifyPanelClosed(closingName);
   };
@@ -372,6 +468,7 @@ export function PortfolioShell() {
   const handleOpenProject = useCallback(
     (projectId: ProjectId, tab: ProjectTab = "overview") => {
       flashSignalBeam();
+      signalSound.playHudOpen();
       showHudNotice(`HUD // PROJECTING ${projectId.toUpperCase()}`);
       setActivePanel({ kind: "project", projectId, tab });
     },
@@ -381,6 +478,7 @@ export function PortfolioShell() {
   const handleOpenArticle = useCallback(
     (articleId: ArticleId) => {
       flashSignalBeam();
+      signalSound.playHudOpen();
       showHudNotice(`HUD // BRIEFING · ${articleId.toUpperCase()}`);
       setActivePanel({ kind: "writing", articleId });
     },
@@ -420,6 +518,37 @@ export function PortfolioShell() {
         icon: "terminal",
         run: () => {
           void handleOpenTextMode();
+        },
+      },
+      {
+        id: "cmd-sfx",
+        group: "Voice & Quick Actions",
+        label: sfxEnabled ? "Mute HUD Sound Effects (SFX)" : "Enable HUD Sound Effects (SFX)",
+        hint: sfxEnabled ? "ON" : "OFF",
+        keywords: "sound audio sfx mute unmute synth chime",
+        icon: "radio",
+        run: () => toggleSfx(),
+      },
+      {
+        id: "cmd-opencalls-demo",
+        group: "Voice & Quick Actions",
+        label: "Switch AI to OpenCalls Live Receptionist Demo",
+        hint: "Persona",
+        keywords: "opencalls demo receptionist persona voice test",
+        icon: "mic",
+        run: () => {
+          void handleSelectPersona("opencalls-demo");
+        },
+      },
+      {
+        id: "cmd-architect-mode",
+        group: "Voice & Quick Actions",
+        label: "Switch AI to Systems Architect Interview Mode",
+        hint: "Persona",
+        keywords: "architect interview grpc latency redis persona",
+        icon: "terminal",
+        run: () => {
+          void handleSelectPersona("architect");
         },
       },
       {
@@ -543,7 +672,17 @@ export function PortfolioShell() {
     ];
 
     return [...quick, ...projectItems, ...writingItems, ...sectionItems, ...externalItems];
-  }, [copyEmail, handleNavClick, handleOpenArticle, handleOpenProject, handleOpenTextMode, handleStartVoice]);
+  }, [
+    copyEmail,
+    handleNavClick,
+    handleOpenArticle,
+    handleOpenProject,
+    handleOpenTextMode,
+    handleSelectPersona,
+    handleStartVoice,
+    sfxEnabled,
+    toggleSfx,
+  ]);
 
   const statusText =
     livekit.serverConfigured === null
@@ -637,10 +776,30 @@ export function PortfolioShell() {
             })}
           </nav>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setPaletteOpen(true)}
+              onClick={toggleSfx}
+              aria-pressed={sfxEnabled}
+              aria-label={sfxEnabled ? "Mute HUD sound effects" : "Enable HUD sound effects"}
+              title="Toggle procedural Web Audio HUD sound effects"
+              className={cn(
+                "hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 border font-mono text-xs cursor-pointer",
+                sfxEnabled
+                  ? "bg-[#38D9A9]/12 border-[#38D9A9]/60 text-[#38D9A9]"
+                  : "bg-[#1A1D23] border-[#2B303B] text-[#9499A3] hover:text-[#EFF0F1] hover:border-[#FF9F38]"
+              )}
+            >
+              {sfxEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span>SFX</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                signalSound.playHudOpen();
+                setPaletteOpen(true);
+              }}
               aria-label="Open command launcher"
               className="hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#C4C8D0] hover:text-[#EFF0F1] hover:border-[#FF9F38] cursor-pointer"
               title="Quick command launcher (⌘K / Ctrl+K)"
@@ -667,6 +826,7 @@ export function PortfolioShell() {
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
               className="lg:hidden p-2 border border-[#2B303B] bg-[#1A1D23] text-[#EFF0F1] cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -676,35 +836,70 @@ export function PortfolioShell() {
 
         <AnimatePresence>
           {mobileMenuOpen && (
-            <motion.nav
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.16 }}
-              aria-label="Mobile navigation"
-              className="lg:hidden border-t border-[#2B303B] bg-[#14171D] px-6 py-4 flex flex-col gap-2 text-sm"
-            >
-              {NAV_LINKS.map((link) => (
-                <button
-                  key={link.id}
-                  type="button"
-                  onClick={() => handleNavClick(link.id)}
-                  className="text-left text-[#C4C8D0] hover:text-[#EFF0F1] py-1.5 cursor-pointer"
-                >
-                  {link.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setPaletteOpen(true);
-                }}
-                className="text-left font-mono text-xs text-[#FF9F38] pt-2 border-t border-[#2B303B] cursor-pointer"
+            <>
+              <motion.div
+                key="mobile-nav-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.16 }}
+                onClick={() => setMobileMenuOpen(false)}
+                aria-hidden="true"
+                className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-30 bg-[#08090C]/65"
+              />
+              <motion.nav
+                key="mobile-nav-drawer"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.16 }}
+                aria-label="Mobile navigation"
+                className="lg:hidden absolute top-full left-0 right-0 z-40 border-b border-[#3B4252] bg-[#14171D]/98 backdrop-blur-md px-6 py-4 flex flex-col gap-2 text-sm shadow-[0_24px_48px_rgba(0,0,0,0.75)]"
               >
-                ⌘K Quick Command Launcher
-              </button>
-            </motion.nav>
+                {NAV_LINKS.map((link) => (
+                  <button
+                    key={link.id}
+                    type="button"
+                    onClick={() => handleNavClick(link.id)}
+                    className={cn(
+                      "text-left py-1.5 cursor-pointer transition-colors",
+                      activeNav === link.id
+                        ? "text-[#FF9F38] font-medium"
+                        : "text-[#C4C8D0] hover:text-[#EFF0F1]"
+                    )}
+                  >
+                    {link.label}
+                  </button>
+                ))}
+                <div className="pt-2.5 mt-1 border-t border-[#2B303B] flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      signalSound.playHudOpen();
+                      setPaletteOpen(true);
+                    }}
+                    className="text-left font-mono text-xs text-[#FF9F38] cursor-pointer"
+                  >
+                    ⌘K Quick Command Launcher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleSfx}
+                    aria-pressed={sfxEnabled}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 border font-mono text-xs cursor-pointer",
+                      sfxEnabled
+                        ? "border-[#38D9A9]/60 text-[#38D9A9] bg-[#38D9A9]/12"
+                        : "border-[#2B303B] text-[#9499A3]"
+                    )}
+                  >
+                    {sfxEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                    <span>SFX</span>
+                  </button>
+                </div>
+              </motion.nav>
+            </>
           )}
         </AnimatePresence>
       </header>
@@ -767,6 +962,8 @@ export function PortfolioShell() {
                 state={livekit.agentState}
                 micLevelRef={livekit.micLevelRef}
                 agentLevelRef={livekit.agentLevelRef}
+                micBinsRef={livekit.micBinsRef}
+                agentBinsRef={livekit.agentBinsRef}
                 onActivate={handleStartVoice}
               />
 
@@ -789,14 +986,54 @@ export function PortfolioShell() {
                 </span>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
+              {/* Multi-Persona LiveKit Agent Mode Selector */}
+              <div
+                role="radiogroup"
+                aria-label="Select LiveKit AI voice persona"
+                className="mt-4 inline-flex flex-wrap items-center justify-center gap-1 p-1 bg-[#1A1D23] border border-[#2B303B]"
+              >
+                {AGENT_PERSONAS.map((persona) => {
+                  const active = selectedPersona === persona.id;
+                  return (
+                    <button
+                      key={persona.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => handleSelectPersona(persona.id)}
+                      title={persona.description}
+                      className={cn(
+                        "relative px-2.5 py-1 font-mono text-[11px] transition-colors cursor-pointer",
+                        active ? "text-[#EFF0F1]" : "text-[#9499A3] hover:text-[#EFF0F1]"
+                      )}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="persona-pill-bg"
+                          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                          className="absolute inset-0 bg-[#22262E] border border-[#FF9F38]/60 pointer-events-none"
+                        />
+                      )}
+                      <span className="relative z-10">{persona.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
                 <button
                   type="button"
                   onClick={handleStartVoice}
                   className="hud-btn flex-1 min-w-[170px] inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#FF5A1F] text-[#121418] font-semibold text-sm hover:bg-[#ff6d38] cursor-pointer"
                 >
                   <Mic className="w-4 h-4" />
-                  <span>Talk to my AI</span>
+                  <span>
+                    {selectedPersona === "opencalls-demo"
+                      ? "Try OpenCalls Demo"
+                      : selectedPersona === "architect"
+                        ? "Grill Systems Architect"
+                        : "Talk to my AI"}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -809,7 +1046,10 @@ export function PortfolioShell() {
               </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2 max-w-lg">
-                {PORTFOLIO.starterPrompts.map((prompt) => (
+                {(
+                  AGENT_PERSONAS.find((p) => p.id === selectedPersona)?.prompts ??
+                  PORTFOLIO.starterPrompts
+                ).map((prompt) => (
                   <button
                     key={prompt}
                     type="button"
@@ -872,6 +1112,8 @@ export function PortfolioShell() {
           agentState={livekit.agentState}
           connected={livekit.connected}
           latestMetrics={livekit.latestMetrics}
+          micBinsRef={livekit.micBinsRef}
+          agentBinsRef={livekit.agentBinsRef}
           highlighted={highlightedTarget === "voice-pipeline"}
           onStartVoice={handleStartVoice}
           onAskAbout={handleAskAbout}
@@ -1098,17 +1340,22 @@ export function PortfolioShell() {
         visible={dockVisible}
         connected={livekit.connected}
         agentState={livekit.agentState}
+        activePersona={selectedPersona}
+        activeVoiceKey={selectedVoiceKey}
+        onSelectVoice={handleSelectVoice}
         micEnabled={livekit.micEnabled}
         micPermissionError={livekit.micPermissionError}
         connectionError={livekit.connectionError}
         transcript={livekit.transcript}
         traceLog={livekit.traceLog}
         latestMetrics={livekit.latestMetrics}
+        metricsHistory={livekit.metricsHistory}
         textInputOpen={textInputOpen}
         onToggleTextInput={() => setTextInputOpen((v) => !v)}
         onToggleMic={livekit.toggleMic}
         onSendText={livekit.sendTextMessage}
         onEndSession={async () => {
+          signalSound.playVoiceLink(false);
           await livekit.disconnect();
           setDockVisible(false);
         }}

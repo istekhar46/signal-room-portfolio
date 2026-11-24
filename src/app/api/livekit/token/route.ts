@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { AccessToken, RoomAgentDispatch, RoomConfiguration } from "livekit-server-sdk";
+import { AGENT_VOICES, type AgentVoiceKey } from "@/lib/ui-actions";
+
+const VOICE_MAP: Record<AgentVoiceKey, string> = Object.fromEntries(
+  AGENT_VOICES.map((v) => [v.key, v.voiceId])
+) as Record<AgentVoiceKey, string>;
 
 export async function POST(request: Request) {
   const livekitUrl = process.env.LIVEKIT_URL;
@@ -20,12 +25,29 @@ export async function POST(request: Request) {
   }
 
   let requestedIdentity: string | undefined;
+  let persona: "representative" | "architect" | "opencalls-demo" = "representative";
+  let voiceKey: AgentVoiceKey = "sarah";
   try {
-    const body = (await request.json()) as { participantName?: string };
+    const body = (await request.json()) as {
+      participantName?: string;
+      persona?: string;
+      voiceKey?: string;
+    };
     requestedIdentity = body.participantName?.trim().slice(0, 48);
+    if (
+      body.persona === "representative" ||
+      body.persona === "architect" ||
+      body.persona === "opencalls-demo"
+    ) {
+      persona = body.persona;
+    }
+    if (body.voiceKey === "sarah" || body.voiceKey === "alice" || body.voiceKey === "bella") {
+      voiceKey = body.voiceKey;
+    }
   } catch {
     // Empty body is valid
   }
+  const voiceId = VOICE_MAP[voiceKey];
 
   const sessionSuffix = crypto.randomUUID().slice(0, 8);
   const roomName = `signal-room-${sessionSuffix}`;
@@ -51,6 +73,7 @@ export async function POST(request: Request) {
     agents: [
       new RoomAgentDispatch({
         agentName,
+        metadata: JSON.stringify({ persona, voiceId }),
       }),
     ],
   });
@@ -62,5 +85,7 @@ export async function POST(request: Request) {
     roomName,
     participantIdentity: identity,
     participantToken: jwt,
+    persona,
+    voiceKey,
   });
 }

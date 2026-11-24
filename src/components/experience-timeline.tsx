@@ -137,28 +137,34 @@ export function ExperienceTimeline({
                       onClick={() => onSelectRole(entry.id)}
                       style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                       className={cn(
-                        "relative h-8 px-3 border text-left text-xs font-medium truncate transition-colors cursor-pointer flex items-center gap-2",
+                        "group relative h-8 px-3 border text-left text-xs font-medium truncate transition-colors cursor-pointer flex items-center gap-2",
                         isSelected
-                          ? "border-[#38D9A9] bg-[#38D9A9]/15 text-[#EFF0F1]"
-                          : "border-[#3B4252] bg-[#161920] text-[#C4C8D0] hover:border-[#9499A3]"
+                          ? "daw-clip-active border-[#38D9A9] bg-[#38D9A9]/15 text-[#EFF0F1]"
+                          : "border-[#3B4252] bg-[#161920] text-[#C4C8D0] hover:border-[#FF9F38] hover:text-[#EFF0F1]"
                       )}
                       aria-pressed={isSelected}
                     >
                       <span className="truncate">{entry.role}</span>
-                      {isSelected && (
-                        <svg
-                          viewBox="0 0 64 16"
-                          className="w-12 h-3.5 ml-auto shrink-0 text-[#38D9A9] opacity-80"
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M0 8 L6 8 L10 3 L14 13 L18 5 L22 11 L26 2 L30 14 L34 6 L38 10 L42 4 L46 12 L50 7 L56 8 L64 8"
-                            stroke="currentColor"
-                            strokeWidth="1.4"
-                            fill="none"
+                      <span
+                        className={cn(
+                          "ml-auto shrink-0 inline-flex items-center gap-[2px] h-4",
+                          isSelected
+                            ? "text-[#38D9A9]"
+                            : "text-[#9499A3]/60 group-hover:text-[#FF9F38]"
+                        )}
+                        aria-hidden="true"
+                      >
+                        {[0.55, 0.95, 0.4, 0.85, 0.65, 1, 0.5, 0.8, 0.45].map((h, barIdx) => (
+                          <span
+                            key={barIdx}
+                            className="daw-wave-bar w-[2px] bg-current rounded-none"
+                            style={{
+                              height: `${Math.round(h * 14)}px`,
+                              animationDelay: `${barIdx * 70}ms`,
+                            }}
                           />
-                        </svg>
-                      )}
+                        ))}
+                      </span>
                     </button>
                   </div>
                 </div>

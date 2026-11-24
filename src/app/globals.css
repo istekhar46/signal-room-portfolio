@@ -222,6 +222,45 @@ a {
   animation: signalTravel 2.4s linear infinite;
 }
 
+@keyframes dawWavePulse {
+  0%,
+  100% {
+    transform: scaleY(0.32);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.daw-wave-bar {
+  transform-origin: center;
+  transform: scaleY(0.45);
+  transition: transform 200ms var(--m-ease), opacity 200ms var(--m-ease);
+}
+
+.group:hover .daw-wave-bar,
+.daw-clip-active .daw-wave-bar {
+  animation: dawWavePulse 0.72s ease-in-out infinite;
+}
+
+@keyframes voiceRippleExpand {
+  0% {
+    transform: scale(0.56);
+    opacity: 0.72;
+  }
+  70% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: scale(1.04);
+    opacity: 0;
+  }
+}
+
+.voice-ripple {
+  animation: voiceRippleExpand 1.65s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -229,7 +268,9 @@ a {
   .scan-sweep,
   .signal-pulse,
   .hud-scan-drop,
-  .signal-travel {
+  .signal-travel,
+  .daw-wave-bar,
+  .voice-ripple {
     animation: none !important;
   }
 }

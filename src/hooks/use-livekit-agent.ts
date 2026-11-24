@@ -65,7 +65,8 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
 
   const roomRef = useRef<Room | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const micRafRef = useRef<number | null>(null);
+  const agentRafRef = useRef<number | null>(null);
   const audioContainerRef = useRef<HTMLDivElement | null>(null);
   const onUiActionRef = useRef(onUiAction);
   onUiActionRef.current = onUiAction;
@@ -96,9 +97,13 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   }, []);
 
   const stopAudioMonitors = useCallback(() => {
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+    if (micRafRef.current !== null) {
+      cancelAnimationFrame(micRafRef.current);
+      micRafRef.current = null;
+    }
+    if (agentRafRef.current !== null) {
+      cancelAnimationFrame(agentRafRef.current);
+      agentRafRef.current = null;
     }
     micLevelRef.current = 0;
     agentLevelRef.current = 0;
@@ -111,6 +116,11 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   const startAudioMonitor = useCallback(
     (stream: MediaStream, target: "mic" | "agent") => {
       try {
+        const targetRafRef = target === "mic" ? micRafRef : agentRafRef;
+        if (targetRafRef.current !== null) {
+          cancelAnimationFrame(targetRafRef.current);
+          targetRafRef.current = null;
+        }
         const AudioCtx =
           window.AudioContext ||
           (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -141,9 +151,9 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
           } else {
             agentLevelRef.current = boosted;
           }
-          rafRef.current = requestAnimationFrame(sample);
+          targetRafRef.current = requestAnimationFrame(sample);
         };
-        rafRef.current = requestAnimationFrame(sample);
+        targetRafRef.current = requestAnimationFrame(sample);
       } catch {
         // Non-fatal: shader falls back to calm state animation
       }

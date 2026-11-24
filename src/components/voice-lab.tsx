@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Radio, RotateCcw } from "lucide-react";
+import { ArrowRight, MessageSquare, Mic, Radio, RotateCcw } from "lucide-react";
 import { PORTFOLIO, type VoiceTopicId } from "@/data/portfolio";
 import type { AgentVisualState, TurnLatencyMetrics } from "@/lib/ui-actions";
 import { cn } from "@/lib/utils";
@@ -12,9 +12,15 @@ interface VoiceLabProps {
   connected: boolean;
   latestMetrics: TurnLatencyMetrics | null;
   highlighted: boolean;
+  onStartVoice: () => void;
+  onAskAbout: (prompt: string) => void;
 }
 
-const PIPELINE_NODES: { id: VoiceTopicId | "mic" | "speaker"; label: string; topic: VoiceTopicId }[] = [
+const PIPELINE_NODES: {
+  id: VoiceTopicId | "mic" | "speaker";
+  label: string;
+  topic: VoiceTopicId;
+}[] = [
   { id: "mic", label: "MIC", topic: "webrtc" },
   { id: "vad", label: "VAD", topic: "vad" },
   { id: "stt", label: "STT", topic: "stt" },
@@ -32,6 +38,8 @@ export function VoiceLab({
   connected,
   latestMetrics,
   highlighted,
+  onStartVoice,
+  onAskAbout,
 }: VoiceLabProps) {
   const activeTopicData =
     PORTFOLIO.voiceTopics.find((t) => t.id === selectedTopic) ?? PORTFOLIO.voiceTopics[0];
@@ -52,28 +60,35 @@ export function VoiceLab({
 
   const hasLiveMetrics = Boolean(
     latestMetrics &&
-      (latestMetrics.vadMs || latestMetrics.sttMs || latestMetrics.llmTtftMs || latestMetrics.ttsTtfbMs)
+      (latestMetrics.vadMs ||
+        latestMetrics.sttMs ||
+        latestMetrics.llmTtftMs ||
+        latestMetrics.ttsTtfbMs)
   );
+
+  // Proportional latency budget segments against a 900ms conversational budget bar
+  const budgetCapMs = Math.max(900, latestMetrics?.totalMs ?? 900);
+  const segWidth = (ms?: number) => (ms ? `${Math.min(100, (ms / budgetCapMs) * 100)}%` : "0%");
 
   return (
     <section
       id="voice-lab"
       aria-labelledby="voice-lab-heading"
-      className="py-24 md:py-32 border-t border-[#232934]"
+      className="py-24 md:py-32 border-t border-[#2B303B]"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
           <h2
             id="voice-lab-heading"
-            className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium tracking-[-0.02em] text-[#F2EFE9] max-w-2xl leading-[1.12]"
+            className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium tracking-[-0.02em] text-[#EFF0F1] max-w-2xl leading-[1.12]"
           >
             How a voice agent hears, thinks, and speaks.
           </h2>
-          <div className="flex items-center gap-2 font-mono text-xs text-[#8B939E] telemetry-nums">
+          <div className="flex items-center gap-2 font-mono text-xs text-[#9499A3] telemetry-nums">
             <Radio
               className={cn(
                 "w-3.5 h-3.5",
-                connected ? "text-[#38D9A9] signal-pulse" : "text-[#8B939E]"
+                connected ? "text-[#38D9A9] signal-pulse" : "text-[#9499A3]"
               )}
             />
             <span>
@@ -119,6 +134,7 @@ export function VoiceLab({
               style={{ animationDelay: "-1.2s" }}
             />
           </svg>
+
           {/* Main horizontal pipeline */}
           <div
             className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3"
@@ -130,21 +146,24 @@ export function VoiceLab({
               const isSelected = selectedTopic === node.topic && node.id !== "speaker";
 
               return (
-                <div key={node.id} className="flex items-center gap-2 lg:gap-3 flex-1 min-w-[110px]">
+                <div
+                  key={node.id}
+                  className="flex items-center gap-2 lg:gap-3 flex-1 min-w-[110px]"
+                >
                   <button
                     type="button"
                     role="tab"
                     aria-selected={isSelected}
                     onClick={() => onSelectTopic(node.topic)}
                     className={cn(
-                      "w-full py-4 px-3 border text-left transition-colors relative cursor-pointer",
+                      "hud-btn w-full py-4 px-3 border text-left relative cursor-pointer",
                       live === "mint"
-                        ? "border-[#38D9A9] bg-[#38D9A9]/10 text-[#F2EFE9]"
+                        ? "border-[#38D9A9] bg-[#38D9A9]/10 text-[#EFF0F1]"
                         : live === "signal"
-                          ? "border-[#FF5A1F] bg-[#FF5A1F]/12 text-[#F2EFE9]"
+                          ? "border-[#FF5A1F] bg-[#FF5A1F]/12 text-[#EFF0F1]"
                           : isSelected
-                            ? "border-[#F2EFE9]/70 bg-[#171C24] text-[#F2EFE9]"
-                            : "border-[#2B3340] bg-[#0E1218] text-[#B8BFC9] hover:border-[#8B939E]"
+                            ? "border-[#EFF0F1]/75 bg-[#22262E] text-[#EFF0F1]"
+                            : "border-[#2B303B] bg-[#121418] text-[#C4C8D0] hover:border-[#9499A3]"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -159,8 +178,8 @@ export function VoiceLab({
                             : live === "signal"
                               ? "bg-[#FF5A1F]"
                               : isSelected
-                                ? "bg-[#F2EFE9]"
-                                : "bg-[#2B3340]"
+                                ? "bg-[#EFF0F1]"
+                                : "bg-[#2B303B]"
                         )}
                       />
                     </div>
@@ -184,15 +203,15 @@ export function VoiceLab({
           </div>
 
           {/* Feedback loop rail */}
-          <div className="mt-5 pt-4 border-t border-[#232934] flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-[#B8BFC9]">
+          <div className="mt-5 pt-4 border-t border-[#2B303B] flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-[#C4C8D0]">
             <button
               type="button"
               onClick={() => onSelectTopic("latency")}
               className={cn(
-                "inline-flex items-center gap-2 px-3 py-1.5 border transition-colors cursor-pointer",
+                "hud-btn inline-flex items-center gap-2 px-3 py-1.5 border cursor-pointer",
                 selectedTopic === "latency"
-                  ? "border-[#FF5A1F] text-[#F2EFE9] bg-[#FF5A1F]/10"
-                  : "border-[#232934] bg-[#0B0D10] hover:border-[#8B939E]"
+                  ? "border-[#FF5A1F] text-[#EFF0F1] bg-[#FF5A1F]/12"
+                  : "border-[#2B303B] bg-[#121418] hover:border-[#9499A3]"
               )}
             >
               <RotateCcw className="w-3.5 h-3.5 text-[#FF5A1F]" />
@@ -208,10 +227,10 @@ export function VoiceLab({
                     type="button"
                     onClick={() => onSelectTopic(tid)}
                     className={cn(
-                      "px-2.5 py-1 border transition-colors cursor-pointer",
+                      "hud-btn px-2.5 py-1 border cursor-pointer",
                       selectedTopic === tid
-                        ? "border-[#38D9A9] text-[#F2EFE9] bg-[#38D9A9]/10"
-                        : "border-[#232934] bg-[#0B0D10] text-[#8B939E] hover:text-[#F2EFE9]"
+                        ? "border-[#38D9A9] text-[#EFF0F1] bg-[#38D9A9]/10"
+                        : "border-[#2B303B] bg-[#121418] text-[#9499A3] hover:text-[#EFF0F1]"
                     )}
                   >
                     {t.shortLabel}
@@ -222,106 +241,161 @@ export function VoiceLab({
           </div>
 
           {/* Active stage inspector + real latency bar */}
-          <div className="mt-6 grid lg:grid-cols-[1.25fr_1fr] gap-6 pt-6 border-t border-[#232934]">
-            <div className="bg-[#0B0D10] border border-[#232934] p-5">
-              <div className="flex items-center justify-between gap-4 mb-2">
-                <h3 className="text-lg font-semibold text-[#F2EFE9]">
-                  {activeTopicData.title}
-                </h3>
-                <span className="font-mono text-xs text-[#38D9A9]">
-                  {activeTopicData.shortLabel}
-                </span>
-              </div>
-              <p className="text-sm text-[#B8BFC9] leading-relaxed mb-4 max-w-[68ch]">
-                {activeTopicData.summary}
-              </p>
-              <ul className="space-y-2 text-sm text-[#B8BFC9]">
-                {activeTopicData.engineeringFocus.map((point) => (
-                  <li key={point} className="flex items-start gap-2.5">
-                    <span className="mt-2 w-1.5 h-1.5 bg-[#FF5A1F] shrink-0" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4 pt-3 border-t border-[#232934] flex flex-wrap gap-2">
-                {activeTopicData.stackUsed.map((tech) => (
-                  <span
-                    key={tech}
-                    className="font-mono text-xs px-2 py-0.5 bg-[#12161C] border border-[#232934] text-[#B8BFC9]"
-                  >
-                    {tech}
+          <div className="mt-6 grid lg:grid-cols-[1.25fr_1fr] gap-6 pt-6 border-t border-[#2B303B]">
+            <div className="bg-[#121418] border border-[#2B303B] p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-4 mb-2">
+                  <h3 className="text-lg font-semibold text-[#EFF0F1]">{activeTopicData.title}</h3>
+                  <span className="font-mono text-xs text-[#38D9A9]">
+                    {activeTopicData.shortLabel}
                   </span>
-                ))}
+                </div>
+                <p className="text-sm text-[#C4C8D0] leading-relaxed mb-4 max-w-[68ch]">
+                  {activeTopicData.summary}
+                </p>
+                <ul className="space-y-2 text-sm text-[#C4C8D0]">
+                  {activeTopicData.engineeringFocus.map((point) => (
+                    <li key={point} className="flex items-start gap-2.5">
+                      <span className="mt-2 w-1.5 h-1.5 bg-[#FF5A1F] shrink-0" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-4 pt-3 border-t border-[#2B303B] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {activeTopicData.stackUsed.map((tech) => (
+                    <span
+                      key={tech}
+                      className="font-mono text-xs px-2 py-0.5 bg-[#1A1D23] border border-[#2B303B] text-[#C4C8D0]"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onAskAbout(
+                      `How does Istekhar design ${activeTopicData.title} in real-time voice systems?`
+                    )
+                  }
+                  className="hud-btn inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#38D9A9] hover:border-[#38D9A9] cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Ask AI</span>
+                </button>
               </div>
             </div>
 
             {/* Real-time latency telemetry panel */}
-            <div className="bg-[#0B0D10] border border-[#232934] p-5 flex flex-col justify-between">
+            <div className="bg-[#121418] border border-[#2B303B] p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-[#F2EFE9]">
+                  <span className="text-sm font-semibold text-[#EFF0F1]">
                     Turn Latency Telemetry
                   </span>
-                  <span className="font-mono text-xs text-[#8B939E] telemetry-nums">
+                  <span
+                    className={cn(
+                      "font-mono text-xs telemetry-nums",
+                      hasLiveMetrics ? "text-[#38D9A9]" : "text-[#9499A3]"
+                    )}
+                  >
                     {hasLiveMetrics ? "LIVE MEASURED" : "STANDBY"}
                   </span>
                 </div>
 
                 {hasLiveMetrics && latestMetrics ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-4 gap-px bg-[#232934] border border-[#232934] font-mono text-xs telemetry-nums">
-                      <div className="bg-[#12161C] p-3">
-                        <div className="text-[#8B939E]">VAD</div>
+                    <div className="grid grid-cols-4 gap-px bg-[#2B303B] border border-[#2B303B] font-mono text-xs telemetry-nums">
+                      <div className="bg-[#1A1D23] p-3">
+                        <div className="text-[#9499A3]">VAD</div>
                         <div className="text-[#38D9A9] text-base mt-1">
                           {latestMetrics.vadMs ? `${latestMetrics.vadMs}ms` : "—"}
                         </div>
                       </div>
-                      <div className="bg-[#12161C] p-3">
-                        <div className="text-[#8B939E]">STT</div>
+                      <div className="bg-[#1A1D23] p-3">
+                        <div className="text-[#9499A3]">STT</div>
                         <div className="text-[#38D9A9] text-base mt-1">
                           {latestMetrics.sttMs ? `${latestMetrics.sttMs}ms` : "—"}
                         </div>
                       </div>
-                      <div className="bg-[#12161C] p-3">
-                        <div className="text-[#8B939E]">LLM</div>
-                        <div className="text-[#FF5A1F] text-base mt-1">
+                      <div className="bg-[#1A1D23] p-3">
+                        <div className="text-[#9499A3]">LLM</div>
+                        <div className="text-[#FF9F38] text-base mt-1">
                           {latestMetrics.llmTtftMs ? `${latestMetrics.llmTtftMs}ms` : "—"}
                         </div>
                       </div>
-                      <div className="bg-[#12161C] p-3">
-                        <div className="text-[#8B939E]">TTS</div>
+                      <div className="bg-[#1A1D23] p-3">
+                        <div className="text-[#9499A3]">TTS</div>
                         <div className="text-[#FF5A1F] text-base mt-1">
                           {latestMetrics.ttsTtfbMs ? `${latestMetrics.ttsTtfbMs}ms` : "—"}
                         </div>
                       </div>
                     </div>
-                    {latestMetrics.totalMs && (
-                      <div className="flex items-center justify-between font-mono text-xs text-[#F2EFE9] telemetry-nums">
-                        <span>Measured turn sum</span>
-                        <span className="text-[#FF5A1F] font-semibold">
-                          {latestMetrics.totalMs}ms
-                        </span>
+
+                    {/* Proportional turn latency budget bar */}
+                    <div className="space-y-1.5">
+                      <div className="h-2.5 w-full bg-[#1A1D23] border border-[#2B303B] flex overflow-hidden">
+                        <div
+                          className="h-full bg-[#38D9A9]/75 transition-[width] duration-300"
+                          style={{ width: segWidth(latestMetrics.vadMs) }}
+                          title={`VAD: ${latestMetrics.vadMs ?? 0}ms`}
+                        />
+                        <div
+                          className="h-full bg-[#38D9A9] transition-[width] duration-300"
+                          style={{ width: segWidth(latestMetrics.sttMs) }}
+                          title={`STT: ${latestMetrics.sttMs ?? 0}ms`}
+                        />
+                        <div
+                          className="h-full bg-[#FF9F38] transition-[width] duration-300"
+                          style={{ width: segWidth(latestMetrics.llmTtftMs) }}
+                          title={`LLM TTFT: ${latestMetrics.llmTtftMs ?? 0}ms`}
+                        />
+                        <div
+                          className="h-full bg-[#FF5A1F] transition-[width] duration-300"
+                          style={{ width: segWidth(latestMetrics.ttsTtfbMs) }}
+                          title={`TTS TTFB: ${latestMetrics.ttsTtfbMs ?? 0}ms`}
+                        />
                       </div>
-                    )}
+                      {latestMetrics.totalMs && (
+                        <div className="flex items-center justify-between font-mono text-xs text-[#EFF0F1] telemetry-nums">
+                          <span className="text-[#9499A3]">Measured stage sum</span>
+                          <span className="text-[#FF9F38] font-semibold">
+                            {latestMetrics.totalMs}ms
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-[#B8BFC9] leading-relaxed">
+                  <div className="space-y-3.5">
+                    <p className="text-sm text-[#C4C8D0] leading-relaxed">
                       Start a live LiveKit voice session to inspect real per-stage VAD, STT, LLM
                       time-to-first-token, and ElevenLabs TTS time-to-first-byte metrics from your
                       own conversation.
                     </p>
-                    <div className="grid grid-cols-4 border border-[#232934] font-mono text-xs text-[#8B939E]">
-                      <div className="p-2.5 border-r border-[#232934] bg-[#12161C]/60">VAD —</div>
-                      <div className="p-2.5 border-r border-[#232934] bg-[#12161C]/60">STT —</div>
-                      <div className="p-2.5 border-r border-[#232934] bg-[#12161C]/60">LLM —</div>
-                      <div className="p-2.5 bg-[#12161C]/60">TTS —</div>
+                    <div className="grid grid-cols-4 border border-[#2B303B] font-mono text-xs text-[#9499A3]">
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">VAD —</div>
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">STT —</div>
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">LLM —</div>
+                      <div className="p-2.5 bg-[#1A1D23]/60">TTS —</div>
                     </div>
+                    {!connected && (
+                      <button
+                        type="button"
+                        onClick={onStartVoice}
+                        className="hud-btn inline-flex items-center gap-2 px-3.5 py-2 bg-[#FF5A1F] text-[#121418] font-semibold text-xs hover:bg-[#ff6d38] cursor-pointer"
+                      >
+                        <Mic className="w-3.5 h-3.5" />
+                        <span>Run live latency test</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
 
-              <p className="mt-4 pt-3 border-t border-[#232934] font-mono text-xs text-[#8B939E]">
+              <p className="mt-4 pt-3 border-t border-[#2B303B] font-mono text-xs text-[#9499A3]">
                 Engine: LiveKit WebRTC + LiveKit Agents · Voice: ElevenLabs TTS plugin
               </p>
             </div>

@@ -77,6 +77,8 @@ function JarvisCoreScene({
   const gyroBRef = useRef<THREE.Group>(null);
   const gyroCRef = useRef<THREE.Group>(null);
   const dialRef = useRef<THREE.Group>(null);
+  const tmpScaleVec = useRef(new THREE.Vector3(1, 1, 1));
+  const tmpTargetColor = useRef(new THREE.Color("#FF9F38"));
 
   const waveSegments = 144;
   const spectrumBars = 64;
@@ -268,10 +270,8 @@ function JarvisCoreScene({
             : state === "listening"
               ? 0.98 + mic * 0.08
               : 1.0 + (reducedMotion ? 0 : Math.sin(t * 1.3) * 0.015);
-      rootRef.current.scale.lerp(
-        new THREE.Vector3(targetScale, targetScale, targetScale),
-        Math.min(1, delta * 7)
-      );
+      tmpScaleVec.current.set(targetScale, targetScale, targetScale);
+      rootRef.current.scale.lerp(tmpScaleVec.current, Math.min(1, delta * 7));
       if (!reducedMotion) {
         rootRef.current.rotation.y = Math.sin(t * 0.35) * 0.18;
         rootRef.current.rotation.x = Math.cos(t * 0.28) * 0.12;
@@ -322,7 +322,8 @@ function JarvisCoreScene({
 
     const specMat = assets.spectrum.material as THREE.LineBasicMaterial;
     const targetHex = state === "listening" ? "#38D9A9" : state === "executing" ? "#FF5A1F" : "#FF9F38";
-    specMat.color.lerp(new THREE.Color(targetHex), Math.min(1, delta * 8));
+    tmpTargetColor.current.set(targetHex);
+    specMat.color.lerp(tmpTargetColor.current, Math.min(1, delta * 8));
 
     const specAttr = assets.spectrum.geometry.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < spectrumBars; i++) {

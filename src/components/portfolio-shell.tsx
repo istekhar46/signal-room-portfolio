@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -8,7 +8,9 @@ import {
   ArrowDown,
   ArrowUpRight,
   Check,
+  Command,
   Copy,
+  FileText,
   Keyboard,
   Menu,
   Mic,
@@ -16,13 +18,16 @@ import {
 } from "lucide-react";
 import { AcousticIris } from "@/components/acoustic-iris";
 import { AgentDock } from "@/components/agent-dock";
+import { CommandPalette, type CommandItem } from "@/components/command-palette";
 import { ExperienceTimeline } from "@/components/experience-timeline";
 import { ProjectsSection } from "@/components/projects-section";
 import { StagePanel, type ActivePanelState } from "@/components/stage-panel";
 import { VoiceLab } from "@/components/voice-lab";
+import { WritingSection } from "@/components/writing-section";
 import { PORTFOLIO, type VoiceTopicId } from "@/data/portfolio";
 import { useLiveKitAgent } from "@/hooks/use-livekit-agent";
 import type {
+  ArticleId,
   HighlightTarget,
   ProjectId,
   ProjectTab,
@@ -33,12 +38,13 @@ import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(useGSAP);
 
-type NavId = "about" | "voice-lab" | "projects" | "experience" | "stack" | "contact";
+type NavId = "about" | "voice-lab" | "projects" | "writing" | "experience" | "stack" | "contact";
 
 const NAV_LINKS: { id: NavId; label: string }[] = [
   { id: "about", label: "About" },
   { id: "voice-lab", label: "Voice Lab" },
   { id: "projects", label: "Projects" },
+  { id: "writing", label: "Writing" },
   { id: "experience", label: "Experience" },
   { id: "stack", label: "Stack" },
   { id: "contact", label: "Contact" },
@@ -49,11 +55,12 @@ export function PortfolioShell() {
   const signalBeamRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
 
-  const [activeNav, setActiveNav] = useState<NavId>("projects");
+  const [activeNav, setActiveNav] = useState<NavId>("about");
   const [hudNotice, setHudNotice] = useState<string | null>(null);
   const [dockVisible, setDockVisible] = useState(false);
   const [textInputOpen, setTextInputOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ActivePanelState>(null);
   const [selectedTopic, setSelectedTopic] = useState<VoiceTopicId>("stt");
   const [selectedRoleId, setSelectedRoleId] = useState<RoleId>("opencalls");
@@ -136,6 +143,16 @@ export function PortfolioShell() {
           });
           return { ok: true };
         }
+        case "open_writing_panel": {
+          setActiveNav("writing");
+          const articleId: ArticleId = action.args.articleId ?? "inside-opencalls";
+          triggerHighlight("writing-notes");
+          showHudNotice(`HUD // WRITING · ${articleId.toUpperCase()}`);
+          const el = document.getElementById("writing");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          setActivePanel({ kind: "writing", articleId });
+          return { ok: true };
+        }
         case "open_experience_panel": {
           setActiveNav("experience");
           const targetRole = action.args.roleId ?? selectedRoleId;
@@ -178,7 +195,7 @@ export function PortfolioShell() {
         case "end_voice_session": {
           setActivePanel(null);
           setHighlightedTarget(null);
-          setActiveNav("projects");
+          setActiveNav("about");
           showHudNotice("HUD // SESSION COMPLETE · RETURNING TO HERO");
           window.scrollTo({ top: 0, behavior: "smooth" });
           // Disconnect after returning RPC ack so LiveKit worker receives clean confirmation
@@ -210,7 +227,42 @@ export function PortfolioShell() {
     };
   }, []);
 
-  // taste-skill line-by-line word-mask hero entrance (once on load)
+  // Scroll spy: keep top HUD reticle synced with the section currently in view
+  useEffect(() => {
+    const sections = NAV_LINKS.map((l) => document.getElementById(l.id)).filter(
+      (el): el is HTMLElement => Boolean(el)
+    );
+    if (sections.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]?.target.id) {
+          setActiveNav(visible[0].target.id as NavId);
+        }
+      },
+      { rootMargin: "-20% 0px -55% 0px", threshold: [0.1, 0.25, 0.5] }
+    );
+
+    sections.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, []);
+
+  // Global Cmd+K / Ctrl+K command launcher shortcut
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Line-by-line word-mask hero entrance (once on load)
   useGSAP(
     () => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -234,65 +286,82 @@ export function PortfolioShell() {
     { scope: rootRef }
   );
 
-  // Iron Man holographic HUD navigation: scrolls & projects matching floating HUD popup
-  const handleNavClick = (id: NavId) => {
-    setActiveNav(id);
-    setMobileMenuOpen(false);
-    flashSignalBeam();
-    const el = document.getElementById(id);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const handleNavClick = useCallback(
+    (id: NavId, openPopup = true) => {
+      setActiveNav(id);
+      setMobileMenuOpen(false);
+      flashSignalBeam();
+      const el = document.getElementById(id);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    switch (id) {
-      case "about":
-        showHudNotice("HUD // PROFILE · ISTEKHAR KHAN");
-        setActivePanel({ kind: "about" });
-        break;
-      case "voice-lab":
-        showHudNotice("HUD // VOICE ENGINEERING LAB");
-        triggerHighlight("voice-pipeline");
-        setActivePanel({ kind: "skills", topic: selectedTopic });
-        break;
-      case "projects":
-        showHudNotice("HUD // FLAGSHIP · OPENCALLS");
-        triggerHighlight("opencalls");
-        setActivePanel({ kind: "project", projectId: "opencalls", tab: "overview" });
-        break;
-      case "experience":
-        showHudNotice("HUD // MULTITRACK TIMELINE");
-        triggerHighlight("experience-current");
-        setActivePanel({ kind: "experience", roleId: selectedRoleId });
-        break;
-      case "stack":
-        showHudNotice("HUD // TECHNICAL STACK");
-        setActivePanel(null);
-        break;
-      case "contact":
-        showHudNotice("HUD // DIRECT COMMS");
-        triggerHighlight("contact-email");
-        setActivePanel({ kind: "contact" });
-        break;
-    }
-  };
+      if (!openPopup) {
+        showHudNotice(`HUD // SECTION · ${id.toUpperCase()}`);
+        return;
+      }
 
-  const handleStartVoice = async () => {
+      switch (id) {
+        case "about":
+          showHudNotice("HUD // PROFILE · ISTEKHAR KHAN");
+          setActivePanel({ kind: "about" });
+          break;
+        case "voice-lab":
+          showHudNotice("HUD // VOICE ENGINEERING LAB");
+          triggerHighlight("voice-pipeline");
+          setActivePanel({ kind: "skills", topic: selectedTopic });
+          break;
+        case "projects":
+          showHudNotice("HUD // FLAGSHIP · OPENCALLS");
+          triggerHighlight("opencalls");
+          setActivePanel({ kind: "project", projectId: "opencalls", tab: "overview" });
+          break;
+        case "writing":
+          showHudNotice("HUD // ENGINEERING WRITING");
+          triggerHighlight("writing-notes");
+          setActivePanel({ kind: "writing", articleId: "inside-opencalls" });
+          break;
+        case "experience":
+          showHudNotice("HUD // MULTITRACK TIMELINE");
+          triggerHighlight("experience-current");
+          setActivePanel({ kind: "experience", roleId: selectedRoleId });
+          break;
+        case "stack":
+          showHudNotice("HUD // TECHNICAL STACK");
+          setActivePanel(null);
+          break;
+        case "contact":
+          showHudNotice("HUD // DIRECT COMMS");
+          triggerHighlight("contact-email");
+          setActivePanel({ kind: "contact" });
+          break;
+      }
+    },
+    [flashSignalBeam, selectedRoleId, selectedTopic, showHudNotice, triggerHighlight]
+  );
+
+  const handleStartVoice = useCallback(async () => {
     setDockVisible(true);
     showHudNotice("J.A.R.V.I.S. LINK // INITIALIZING LIVEKIT");
     await livekit.connect({ enableMic: true });
-  };
+  }, [livekit, showHudNotice]);
 
-  const handleOpenTextMode = async () => {
+  const handleOpenTextMode = useCallback(async () => {
     setDockVisible(true);
     setTextInputOpen(true);
     if (livekit.serverConfigured) {
       await livekit.connect({ enableMic: false });
     }
-  };
+  }, [livekit]);
 
-  const handleStarterPrompt = async (prompt: string) => {
-    setDockVisible(true);
-    setTextInputOpen(true);
-    await livekit.sendTextMessage(prompt);
-  };
+  const handleAskAbout = useCallback(
+    async (prompt: string) => {
+      setActivePanel(null);
+      setDockVisible(true);
+      setTextInputOpen(true);
+      showHudNotice("HUD // ROUTING QUERY TO LIVEKIT AGENT");
+      await livekit.sendTextMessage(prompt);
+    },
+    [livekit, showHudNotice]
+  );
 
   const handleClosePanel = () => {
     const closingName = activePanel?.kind ?? "none";
@@ -300,21 +369,181 @@ export function PortfolioShell() {
     livekit.notifyPanelClosed(closingName);
   };
 
-  const handleOpenProject = (projectId: ProjectId, tab: ProjectTab = "overview") => {
-    flashSignalBeam();
-    showHudNotice(`HUD // PROJECTING ${projectId.toUpperCase()}`);
-    setActivePanel({ kind: "project", projectId, tab });
-  };
+  const handleOpenProject = useCallback(
+    (projectId: ProjectId, tab: ProjectTab = "overview") => {
+      flashSignalBeam();
+      showHudNotice(`HUD // PROJECTING ${projectId.toUpperCase()}`);
+      setActivePanel({ kind: "project", projectId, tab });
+    },
+    [flashSignalBeam, showHudNotice]
+  );
 
-  const copyEmail = async () => {
+  const handleOpenArticle = useCallback(
+    (articleId: ArticleId) => {
+      flashSignalBeam();
+      showHudNotice(`HUD // BRIEFING · ${articleId.toUpperCase()}`);
+      setActivePanel({ kind: "writing", articleId });
+    },
+    [flashSignalBeam, showHudNotice]
+  );
+
+  const copyEmail = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(PORTFOLIO.person.email);
       setCopiedEmail(true);
+      showHudNotice("HUD // EMAIL COPIED TO CLIPBOARD");
       setTimeout(() => setCopiedEmail(false), 2000);
     } catch {
       // Clipboard blocked
     }
-  };
+  }, [showHudNotice]);
+
+  const commandItems = useMemo<CommandItem[]>(() => {
+    const quick: CommandItem[] = [
+      {
+        id: "cmd-voice",
+        group: "Voice & Quick Actions",
+        label: "Talk to Istekhar's LiveKit Voice AI",
+        hint: "WebRTC",
+        keywords: "voice talk mic agent jarvis livekit",
+        icon: "mic",
+        run: () => {
+          void handleStartVoice();
+        },
+      },
+      {
+        id: "cmd-text",
+        group: "Voice & Quick Actions",
+        label: "Ask AI representative via text",
+        hint: "Chat",
+        keywords: "type text chat message prompt",
+        icon: "terminal",
+        run: () => {
+          void handleOpenTextMode();
+        },
+      },
+      {
+        id: "cmd-copy-email",
+        group: "Voice & Quick Actions",
+        label: `Copy email (${PORTFOLIO.person.email})`,
+        hint: "Clipboard",
+        keywords: "email contact mail copy hire",
+        icon: "copy",
+        run: () => {
+          void copyEmail();
+        },
+      },
+      {
+        id: "cmd-resume",
+        group: "Voice & Quick Actions",
+        label: "Open Resume (PDF)",
+        hint: "Drive",
+        keywords: "resume cv pdf download experience",
+        icon: "file",
+        run: () => window.open(PORTFOLIO.person.resumeUrl, "_blank", "noopener,noreferrer"),
+      },
+    ];
+
+    const projectItems: CommandItem[] = [
+      {
+        id: "cmd-opencalls-arch",
+        group: "Projects",
+        label: "OpenCalls — Control Plane & LiveKit Architecture",
+        hint: "Flagship",
+        keywords: "opencalls architecture grpc livekit sip webrtc telephony",
+        icon: "layers",
+        run: () => handleOpenProject("opencalls", "architecture"),
+      },
+      ...PORTFOLIO.projects.map((p) => ({
+        id: `cmd-proj-${p.id}`,
+        group: "Projects" as const,
+        label: `${p.name} — ${p.category}`,
+        hint: p.year,
+        keywords: `${p.name} ${p.stack.join(" ")} ${p.tagline}`,
+        icon: "layers" as const,
+        run: () => handleOpenProject(p.id, "overview"),
+      })),
+    ];
+
+    const writingItems: CommandItem[] = PORTFOLIO.articles.map((a) => ({
+      id: `cmd-art-${a.id}`,
+      group: "Engineering Writing",
+      label: a.title,
+      hint: a.date,
+      keywords: `${a.title} ${a.tags.join(" ")} ${a.category} medium blog article`,
+      icon: "book",
+      run: () => handleOpenArticle(a.id),
+    }));
+
+    const sectionItems: CommandItem[] = NAV_LINKS.map((nav) => ({
+      id: `cmd-sec-${nav.id}`,
+      group: "Sections",
+      label: `Jump to ${nav.label}`,
+      hint: `#${nav.id}`,
+      keywords: `section scroll ${nav.label} ${nav.id}`,
+      icon: nav.id === "voice-lab" ? "radio" : nav.id === "experience" ? "briefcase" : "code",
+      run: () => handleNavClick(nav.id, false),
+    }));
+
+    const externalItems: CommandItem[] = [
+      {
+        id: "cmd-opencalls-live",
+        group: "External Links",
+        label: "OpenCalls Live — opencallsai.com",
+        hint: "Product",
+        keywords: "opencalls website live app voice ai product",
+        icon: "external",
+        run: () => window.open("https://www.opencallsai.com", "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "cmd-invoiceo-live",
+        group: "External Links",
+        label: "invoiceo Live — invoiceo.site",
+        hint: "Product",
+        keywords: "invoiceo website live app invoicing billing product",
+        icon: "external",
+        run: () => window.open("https://www.invoiceo.site", "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "cmd-github",
+        group: "External Links",
+        label: "GitHub — github.com/istekhar46",
+        hint: "70 repos",
+        keywords: "github code open source repos",
+        icon: "external",
+        run: () => window.open(PORTFOLIO.person.github, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "cmd-linkedin",
+        group: "External Links",
+        label: "LinkedIn — linkedin.com/in/istekhar46",
+        hint: "Profile",
+        keywords: "linkedin network profile",
+        icon: "external",
+        run: () => window.open(PORTFOLIO.person.linkedin, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "cmd-medium",
+        group: "External Links",
+        label: "Medium — @istekharkhan46",
+        hint: "Articles",
+        keywords: "medium blog writing posts",
+        icon: "external",
+        run: () => window.open(PORTFOLIO.person.medium, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "cmd-x",
+        group: "External Links",
+        label: "X / Twitter — @istekharkhan46",
+        hint: "Social",
+        keywords: "twitter x social",
+        icon: "external",
+        run: () => window.open(PORTFOLIO.person.twitter, "_blank", "noopener,noreferrer"),
+      },
+    ];
+
+    return [...quick, ...projectItems, ...writingItems, ...sectionItems, ...externalItems];
+  }, [copyEmail, handleNavClick, handleOpenArticle, handleOpenProject, handleOpenTextMode, handleStartVoice]);
 
   const statusText =
     livekit.serverConfigured === null
@@ -360,11 +589,11 @@ export function PortfolioShell() {
 
       {/* Top broadcast HUD navigation bar with sliding targeting reticle */}
       <header className="sticky top-0 z-30 bg-[#121418]/95 border-b border-[#2B303B]">
-        <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 flex items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 h-16 flex items-center justify-between gap-4">
           <a
             href="#hero"
             onClick={() => setActivePanel(null)}
-            className="inline-flex items-center gap-3 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
+            className="inline-flex items-center gap-3 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors shrink-0"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <polygon
@@ -379,7 +608,10 @@ export function PortfolioShell() {
             </span>
           </a>
 
-          <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-2 text-sm">
+          <nav
+            aria-label="Primary navigation"
+            className="hidden lg:flex items-center gap-1 text-sm"
+          >
             {NAV_LINKS.map((link) => {
               const active = activeNav === link.id;
               return (
@@ -388,7 +620,7 @@ export function PortfolioShell() {
                   type="button"
                   onClick={() => handleNavClick(link.id)}
                   className={cn(
-                    "relative px-3.5 py-1.5 transition-colors cursor-pointer",
+                    "relative px-3 py-1.5 transition-colors cursor-pointer",
                     active ? "text-[#EFF0F1]" : "text-[#C4C8D0] hover:text-[#EFF0F1]"
                   )}
                 >
@@ -405,7 +637,18 @@ export function PortfolioShell() {
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Open command launcher"
+              className="hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#C4C8D0] hover:text-[#EFF0F1] hover:border-[#FF9F38] cursor-pointer"
+              title="Quick command launcher (⌘K / Ctrl+K)"
+            >
+              <Command className="w-3.5 h-3.5 text-[#FF9F38]" />
+              <span>K</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setDockVisible((v) => !v)}
@@ -424,7 +667,7 @@ export function PortfolioShell() {
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Toggle navigation menu"
-              className="md:hidden p-2 border border-[#2B303B] bg-[#1A1D23] text-[#EFF0F1] cursor-pointer"
+              className="lg:hidden p-2 border border-[#2B303B] bg-[#1A1D23] text-[#EFF0F1] cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
@@ -439,7 +682,7 @@ export function PortfolioShell() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.16 }}
               aria-label="Mobile navigation"
-              className="md:hidden border-t border-[#2B303B] bg-[#14171D] px-6 py-4 flex flex-col gap-2 text-sm"
+              className="lg:hidden border-t border-[#2B303B] bg-[#14171D] px-6 py-4 flex flex-col gap-2 text-sm"
             >
               {NAV_LINKS.map((link) => (
                 <button
@@ -451,6 +694,16 @@ export function PortfolioShell() {
                   {link.label}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setPaletteOpen(true);
+                }}
+                className="text-left font-mono text-xs text-[#FF9F38] pt-2 border-t border-[#2B303B] cursor-pointer"
+              >
+                ⌘K Quick Command Launcher
+              </button>
             </motion.nav>
           )}
         </AnimatePresence>
@@ -465,10 +718,10 @@ export function PortfolioShell() {
         >
           <div className="grid lg:grid-cols-[1.12fr_0.98fr] gap-12 lg:gap-10 items-center">
             {/* Left column: monumental editorial headline with word masks */}
-            <div className="space-y-7 lg:pr-8 lg:border-r lg:border-[#2B303B]">
+            <div className="min-w-0 space-y-7 lg:pr-8 lg:border-r lg:border-[#2B303B]">
               <h1
                 id="hero-heading"
-                className="text-[clamp(3rem,6.3vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.03em] text-[#EFF0F1]"
+                className="text-[clamp(2.35rem,6.3vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.03em] text-[#EFF0F1]"
               >
                 <span className="block overflow-hidden">
                   <span className="hero-line block">Engineering</span>
@@ -485,13 +738,22 @@ export function PortfolioShell() {
                 {PORTFOLIO.person.heroSubcopy}
               </p>
 
-              <div className="hero-reveal flex flex-wrap items-center gap-6 pt-2 text-sm">
+              <div className="hero-reveal flex flex-wrap items-center gap-x-6 gap-y-3 pt-2 text-sm">
                 <a
                   href="#about"
-                  className="inline-flex items-center gap-2 text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors"
+                  className="inline-flex items-center gap-2 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
                 >
                   <ArrowDown className="w-4 h-4 text-[#FF5A1F]" />
                   <span>Explore my work</span>
+                </a>
+                <a
+                  href={PORTFOLIO.person.resumeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors"
+                >
+                  <FileText className="w-4 h-4 text-[#FF9F38]" />
+                  <span>Resume</span>
                 </a>
                 <span className="text-[#9499A3]">
                   {PORTFOLIO.person.name} · {PORTFOLIO.person.currentHeadline}
@@ -500,7 +762,7 @@ export function PortfolioShell() {
             </div>
 
             {/* Right column: J.A.R.V.I.S. 3D Holographic Core + controls */}
-            <div className="hero-reveal flex flex-col items-center">
+            <div className="hero-reveal min-w-0 flex flex-col items-center">
               <AcousticIris
                 state={livekit.agentState}
                 micLevelRef={livekit.micLevelRef}
@@ -551,7 +813,7 @@ export function PortfolioShell() {
                   <button
                     key={prompt}
                     type="button"
-                    onClick={() => handleStarterPrompt(prompt)}
+                    onClick={() => handleAskAbout(prompt)}
                     className="hud-btn px-3 py-1.5 bg-[#1A1D23] border border-[#2B303B] text-xs text-[#C4C8D0] hover:text-[#EFF0F1] hover:border-[#38D9A9] cursor-pointer"
                   >
                     {prompt}
@@ -581,8 +843,13 @@ export function PortfolioShell() {
                 <p className="text-base text-[#C4C8D0] leading-relaxed max-w-[58ch]">
                   {PORTFOLIO.about.bio}
                 </p>
-                <div className="pt-2 font-mono text-xs text-[#9499A3]">
-                  {PORTFOLIO.person.name} · {PORTFOLIO.person.location}
+                <div className="pt-2 space-y-1.5 font-mono text-xs">
+                  <div className="text-[#9499A3]">
+                    {PORTFOLIO.person.name} · {PORTFOLIO.person.location}
+                  </div>
+                  <div className="text-[#38D9A9]">
+                    CURRENT R&amp;D // {PORTFOLIO.person.currentResearch.toUpperCase()}
+                  </div>
                 </div>
               </div>
 
@@ -606,6 +873,8 @@ export function PortfolioShell() {
           connected={livekit.connected}
           latestMetrics={livekit.latestMetrics}
           highlighted={highlightedTarget === "voice-pipeline"}
+          onStartVoice={handleStartVoice}
+          onAskAbout={handleAskAbout}
         />
 
         {/* C. PROJECTS & FLAGSHIP OPENCALLS */}
@@ -614,14 +883,21 @@ export function PortfolioShell() {
           highlightedTarget={highlightedTarget}
         />
 
-        {/* D. MULTITRACK EXPERIENCE TIMELINE */}
+        {/* D. ENGINEERING WRITING (MEDIUM FIELD NOTES) */}
+        <WritingSection
+          onOpenArticle={handleOpenArticle}
+          onAskAbout={handleAskAbout}
+          highlighted={highlightedTarget === "writing-notes"}
+        />
+
+        {/* E. MULTITRACK EXPERIENCE TIMELINE */}
         <ExperienceTimeline
           selectedRoleId={selectedRoleId}
           onSelectRole={(roleId) => setSelectedRoleId(roleId)}
           highlighted={highlightedTarget === "experience-current"}
         />
 
-        {/* E. TECHNICAL STACK */}
+        {/* F. TECHNICAL STACK */}
         <section
           id="stack"
           aria-labelledby="stack-heading"
@@ -681,7 +957,7 @@ export function PortfolioShell() {
           </div>
         </section>
 
-        {/* F. CONTACT */}
+        {/* G. CONTACT */}
         <section
           id="contact"
           aria-labelledby="contact-heading"
@@ -726,7 +1002,17 @@ export function PortfolioShell() {
               </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6 pt-4 border-t border-[#2B303B] text-sm">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-4 border-t border-[#2B303B] text-sm">
+              <a
+                href={PORTFOLIO.person.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
+              >
+                <span>GitHub</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
+
               <a
                 href={PORTFOLIO.person.linkedin}
                 target="_blank"
@@ -737,13 +1023,35 @@ export function PortfolioShell() {
                 <ArrowUpRight className="w-4 h-4" />
               </a>
 
-              <button
-                type="button"
-                onClick={() => handleNavClick("contact")}
-                className="text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors cursor-pointer"
+              <a
+                href={PORTFOLIO.person.medium}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[#EFF0F1] hover:text-[#38D9A9] transition-colors"
               >
-                Open contact HUD
-              </button>
+                <span>Medium</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
+
+              <a
+                href={PORTFOLIO.person.twitter}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
+              >
+                <span>X</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
+
+              <a
+                href={PORTFOLIO.person.resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors"
+              >
+                <FileText className="w-4 h-4 text-[#FF9F38]" />
+                <span>Resume</span>
+              </a>
 
               <button
                 type="button"
@@ -775,6 +1083,14 @@ export function PortfolioShell() {
         onChangePanel={setActivePanel}
         onClose={handleClosePanel}
         onStartVoice={handleStartVoice}
+        onAskAbout={handleAskAbout}
+      />
+
+      {/* Quick Command Launcher (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        items={commandItems}
       />
 
       {/* Persistent bottom Agent Dock */}

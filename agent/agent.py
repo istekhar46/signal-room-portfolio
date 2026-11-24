@@ -42,12 +42,20 @@ load_dotenv()
 
 logger = logging.getLogger("signal-room-agent")
 
-SectionId = Literal["hero", "about", "voice-lab", "projects", "experience", "stack", "contact"]
+SectionId = Literal["hero", "about", "voice-lab", "projects", "writing", "experience", "stack", "contact"]
 ProjectId = Literal["opencalls", "invoiceo", "ruh-ai-voice"]
 ProjectTab = Literal["overview", "problem", "architecture", "decisions", "stack", "contributions"]
 RoleId = Literal["opencalls", "invoiceo", "ruh-ai", "rapid-innovation", "unbundl", "auralapp"]
 VoiceTopicId = Literal[
     "pipeline", "vad", "stt", "llm", "tts", "webrtc", "sip", "telephony", "latency", "tools"
+]
+ArticleId = Literal[
+    "inside-opencalls",
+    "observability-signoz",
+    "celery-rabbitmq-redis",
+    "voice-agents-pain-points",
+    "redis-lua-idempotency",
+    "architecting-voice-agents",
 ]
 HighlightTargetId = Literal[
     "active-projects",
@@ -55,6 +63,7 @@ HighlightTargetId = Literal[
     "invoiceo",
     "ruh-ai-voice",
     "voice-pipeline",
+    "writing-notes",
     "experience-current",
     "contact-email",
 ]
@@ -140,6 +149,18 @@ class SignalRoomRepresentative(Agent):
         if topic:
             args["topic"] = topic
         return await dispatch_ui_action("open_skill_explorer", args)
+
+    @function_tool()
+    async def open_writing_panel(
+        self,
+        context: RunContext,
+        article_id: Optional[ArticleId] = None,
+    ) -> str:
+        """Open the Engineering Notes & Writing HUD focused on one of Istekhar's published Medium articles."""
+        args: dict = {}
+        if article_id:
+            args["articleId"] = article_id
+        return await dispatch_ui_action("open_writing_panel", args)
 
     @function_tool()
     async def show_architecture(

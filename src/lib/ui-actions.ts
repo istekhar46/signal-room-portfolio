@@ -5,6 +5,7 @@ export const SectionIdSchema = z.enum([
   "about",
   "voice-lab",
   "projects",
+  "writing",
   "experience",
   "stack",
   "contact",
@@ -43,12 +44,22 @@ export const VoiceTopicSchema = z.enum([
   "tools",
 ]);
 
+export const ArticleIdSchema = z.enum([
+  "inside-opencalls",
+  "observability-signoz",
+  "celery-rabbitmq-redis",
+  "voice-agents-pain-points",
+  "redis-lua-idempotency",
+  "architecting-voice-agents",
+]);
+
 export const HighlightTargetSchema = z.enum([
   "active-projects",
   "opencalls",
   "invoiceo",
   "ruh-ai-voice",
   "voice-pipeline",
+  "writing-notes",
   "experience-current",
   "contact-email",
 ]);
@@ -75,6 +86,12 @@ export const UiActionSchema = z.discriminatedUnion("name", [
     name: z.literal("open_skill_explorer"),
     args: z.object({
       topic: VoiceTopicSchema.optional(),
+    }),
+  }),
+  z.object({
+    name: z.literal("open_writing_panel"),
+    args: z.object({
+      articleId: ArticleIdSchema.optional(),
     }),
   }),
   z.object({
@@ -112,6 +129,7 @@ export type SectionId = z.infer<typeof SectionIdSchema>;
 export type ProjectId = z.infer<typeof ProjectIdSchema>;
 export type ProjectTab = z.infer<typeof ProjectTabSchema>;
 export type RoleId = z.infer<typeof RoleIdSchema>;
+export type ArticleId = z.infer<typeof ArticleIdSchema>;
 export type HighlightTarget = z.infer<typeof HighlightTargetSchema>;
 
 export interface TurnLatencyMetrics {
@@ -157,6 +175,10 @@ export function formatActionSignature(action: UiAction): string {
       return action.args.topic
         ? `open_skill_explorer("${action.args.topic}")`
         : `open_skill_explorer()`;
+    case "open_writing_panel":
+      return action.args.articleId
+        ? `open_writing_panel("${action.args.articleId}")`
+        : `open_writing_panel()`;
     case "show_architecture":
       return `show_architecture("${action.args.projectId}")`;
     case "open_contact_panel":

@@ -23,6 +23,11 @@ export interface PortfolioProject {
   contributions: string[];
   stack: string[];
   locationOrContext: string;
+  liveUrl?: string;
+  liveLabel?: string;
+  articleUrl?: string;
+  articleLabel?: string;
+  repoUrl?: string;
 }
 
 export interface ExperienceEntry {
@@ -63,6 +68,24 @@ export interface VoicePipelineTopic {
   stackUsed: string[];
 }
 
+export interface EngineeringArticle {
+  id:
+    | "inside-opencalls"
+    | "observability-signoz"
+    | "celery-rabbitmq-redis"
+    | "voice-agents-pain-points"
+    | "redis-lua-idempotency"
+    | "architecting-voice-agents";
+  title: string;
+  date: string;
+  category: "Voice Systems" | "Distributed Systems" | "Observability";
+  summary: string;
+  takeaways: string[];
+  tags: string[];
+  url: string;
+  featured?: boolean;
+}
+
 export interface StackCategory {
   id: string;
   name: string;
@@ -81,10 +104,16 @@ export const PORTFOLIO = {
     currentHeadline: "Founder at OpenCalls",
     heroHeadline: "Engineering Intelligence Into Conversations.",
     heroSubcopy:
-      "Voice AI Engineer building intelligent conversational systems, real-time voice agents, and full-stack AI products.",
+      "Voice AI Engineer building production telephony & WebRTC voice agents, distributed gRPC control planes, and full-stack AI systems.",
     location: "Delhi & Pune, India",
     email: "istekharkhan46@gmail.com",
     linkedin: "https://www.linkedin.com/in/istekhar46",
+    github: "https://github.com/istekhar46",
+    twitter: "https://x.com/istekharkhan46",
+    medium: "https://medium.com/@istekharkhan46",
+    resumeUrl:
+      "https://drive.google.com/file/d/1us-TqPQcdhfOMK8W26gLw6LoGRYikV63/view?usp=sharing",
+    currentResearch: "STFT & custom TTS model internals",
     education: {
       institution: "Dr. A.P.J. Abdul Kalam Technical University",
       degree: "B.Tech, Computer Science",
@@ -99,31 +128,32 @@ export const PORTFOLIO = {
 
   about: {
     statement:
-      "Voice is the highest-bandwidth human interface — when latency drops and dialogue stays grounded, software stops feeling like forms and starts acting like a collaborator.",
-    bio: "I'm Istekhar Khan, Founder at OpenCalls and former Founding Engineer at RUH AI. I design and deploy production-ready voice AI agents across telephony and web interfaces, pairing low-latency speech pipelines (LiveKit, Vocode, STT, TTS, VAD, LLM orchestration) with full-stack engineering in Next.js, NestJS, PostgreSQL, and GraphQL.",
+      "Voice is the highest-bandwidth human interface — when latency drops and system boundaries stay clean, software stops feeling like forms and starts acting like a collaborator.",
+    bio: "I'm Istekhar Khan, Founder at OpenCalls and former Founding Engineer at RUH AI. I architect and ship production voice AI platforms — separating real-time LiveKit speech execution from durable gRPC microservices, Redis concurrency controls, and OpenTelemetry observability — alongside full-stack engineering in Next.js, NestJS, PostgreSQL, and GraphQL.",
     specializations: [
       {
-        title: "Real-Time Voice Agents",
+        title: "Real-Time Voice Execution",
         detail:
-          "Production voice systems over telephony (SIP) and WebRTC web interfaces that hold natural, interruption-aware conversations for customer service, sales, and workflow automation.",
+          "Production voice agents over SIP telephony and WebRTC (LiveKit, Vocode) engineered for low-latency streaming VAD, STT, LLM orchestration, ElevenLabs TTS, and natural barge-in.",
       },
       {
-        title: "AI Agent & Workflow Orchestration",
+        title: "Distributed Control Planes",
         detail:
-          "Context-aware LLM dialogue pipelines, deterministic tool execution, and multi-step agentic workflows using LiveKit Agents, LangChain, and AutoGen.",
+          "Protobuf gRPC service boundaries, Celery + RabbitMQ async queues, atomic Redis + Lua idempotency, RAG knowledge retrieval, and OpenTelemetry / SigNoz tracing.",
       },
       {
-        title: "Full-Stack Product Engineering",
+        title: "Full-Stack AI Products",
         detail:
-          "End-to-end web platforms built with Next.js, NestJS, MERN Stack, PostgreSQL, GraphQL, and clean API integrations.",
+          "End-to-end consoles, API gateways, and web workspaces built with Next.js, TypeScript, NestJS, PostgreSQL, and GraphQL.",
       },
     ],
   },
 
   starterPrompts: [
     "What is OpenCalls?",
+    "How does OpenCalls' architecture work?",
     "His voice AI stack?",
-    "His experience?",
+    "Show his engineering articles",
   ],
 
   voiceTopics: [
@@ -151,7 +181,7 @@ export const PORTFOLIO = {
         "Streaming WebSocket audio ingestion with interim partials for responsive UI captions",
         "Clean handoff from endpointed transcripts into LLM context without redundant turns",
       ],
-      stackUsed: ["Streaming STT", "LiveKit Agents", "Vocode"],
+      stackUsed: ["Deepgram Nova-3", "Streaming STT", "LiveKit Agents", "Vocode"],
     },
     {
       id: "llm",
@@ -162,7 +192,7 @@ export const PORTFOLIO = {
         "Routes conversational intent, stays strictly grounded in verified context, and dispatches typed function tools without stalling spoken replies.",
       engineeringFocus: [
         "Keeping system context lean so time-to-first-token stays tight on every voice turn",
-        "Strict schema-validated tool execution (RPC UI actions, CRM/workflow triggers) owned by code",
+        "Strict schema-validated tool execution (RPC UI actions, knowledge retrieval, billing & CRM triggers) owned by code",
       ],
       stackUsed: ["LiveKit Agents", "LangChain", "AutoGen", "Function Tools"],
     },
@@ -177,7 +207,7 @@ export const PORTFOLIO = {
         "ElevenLabs TTS plugin inside LiveKit with TTS-aligned transcription forwarding",
         "Immediate playback cancellation on user interruption so audio never talks over the caller",
       ],
-      stackUsed: ["ElevenLabs TTS Plugin", "LiveKit Audio Stream"],
+      stackUsed: ["ElevenLabs TTS Plugin", "LiveKit Audio Stream", "STFT / Audio DSP"],
     },
     {
       id: "webrtc",
@@ -211,21 +241,21 @@ export const PORTFOLIO = {
         "End-to-end calling agents built to operate reliably across real telephone lines and web interfaces.",
       engineeringFocus: [
         "Designing conversational flows for customer service, sales qualification, and operational automation",
-        "Consistent agent logic shared across phone calls and browser voice sessions",
+        "Consistent agent runtime shared across phone calls and browser voice sessions",
       ],
       stackUsed: ["OpenCalls", "LiveKit", "Vocode"],
     },
     {
       id: "latency",
       shortLabel: "LATENCY",
-      title: "Latency & Interruption Handling",
+      title: "Latency, Observability & Interruption Handling",
       summary:
-        "Measuring and minimizing every stage of the conversational loop — VAD, STT, LLM TTFT, and TTS TTFB — so replies feel human.",
+        "Distinguishing individual stage timings (VAD, STT, LLM TTFT, TTS TTFB) from caller-observed voice-response latency so replies feel human.",
       engineeringFocus: [
         "Streaming every stage concurrently rather than waiting for full completions",
-        "Observing per-stage turn metrics live in the Signal Trace during real sessions",
+        "Exporting turn and provider telemetry via OpenTelemetry & observing real metrics live in the Signal Trace",
       ],
-      stackUsed: ["Per-Stage Metrics", "Streaming Pipelines", "Barge-In Control"],
+      stackUsed: ["OpenTelemetry", "SigNoz", "Per-Stage Metrics", "Barge-In Control"],
     },
     {
       id: "tools",
@@ -235,9 +265,9 @@ export const PORTFOLIO = {
         "Connecting conversational agents to deterministic external workflows and live frontend interfaces.",
       engineeringFocus: [
         "Allowlisted, schema-validated UI actions (like the agent driving this portfolio)",
-        "Backend workflow automation tying voice outcomes into databases and APIs",
+        "Async workflow automation via gRPC services, Celery, RabbitMQ, and Redis",
       ],
-      stackUsed: ["LiveKit RPC", "Zod Schemas", "LangChain", "AutoGen"],
+      stackUsed: ["LiveKit RPC", "Zod Schemas", "gRPC", "LangChain", "AutoGen"],
     },
     {
       id: "pipeline",
@@ -257,78 +287,100 @@ export const PORTFOLIO = {
     {
       id: "opencalls",
       name: "OpenCalls",
-      tagline: "AI voice agents that sound natural, act intelligently, and automate real conversations.",
+      tagline:
+        "AI voice agents that sound natural, act intelligently, and automate real conversations.",
       category: "Voice AI Platform · Telephony & Web",
       year: "2026 — Present",
       status: "active",
       flagship: true,
       locationOrContext: "Founder · Pune District, Maharashtra, India",
+      liveUrl: "https://www.opencallsai.com",
+      liveLabel: "opencallsai.com",
+      articleUrl:
+        "https://medium.com/@istekharkhan46/inside-opencalls-how-our-voice-ai-services-work-together-cf367000d753",
+      articleLabel: "Read architecture deep-dive",
       overview:
-        "OpenCalls is my flagship venture focused on building production-ready AI voice agents that hold natural, low-latency conversations and automate real customer service, sales, and operational workflows across telephony and web interfaces.",
+        "OpenCalls is my flagship voice AI platform separating durable business orchestration (backend control plane) from sub-second real-time conversation execution (LiveKit voice execution plane) so teams can run production phone and web voice agents reliably.",
       problem:
-        "Conventional IVRs and scripted voice bots sound robotic, break on interruptions, and fail to connect natural dialogue to real backend actions. Teams need voice agents that feel genuinely conversational while reliably executing structured workflows.",
+        "A voice AI platform carries two incompatible workloads: durable SaaS control (auth, published agent versions, phone assignments, RAG knowledge bases, wallets & billing) and millisecond-sensitive live audio dialogue. Mixing them causes brittle failures, untraceable latency spikes, and inconsistent billing state.",
       architectureSummary:
-        "Built on a real-time full-duplex audio pipeline connecting SIP telephony and browser WebRTC peers through LiveKit rooms into streaming VAD, STT, context-aware LLM orchestration with deterministic tool calling, and expressive streaming TTS.",
+        "Split cleanly into an HTTP Gateway + protobuf gRPC domain microservices control plane (Auth, Admin, Call, Knowledge-Base, Payment) and a LiveKit real-time voice execution plane with domain-isolated PostgreSQL stores, Redis state/rate-limiting, GCS transcript artifacts, and OpenTelemetry turn telemetry.",
       architectureNodes: [
         {
-          id: "ingress",
-          label: "SIP / WebRTC",
-          sublabel: "Telephony & Browser",
-          detail: "Full-duplex voice ingress from phone networks and web clients.",
+          id: "gateway",
+          label: "HTTP Gateway & gRPC",
+          sublabel: "Control Plane Boundary",
+          detail:
+            "Customer & admin REST boundary translating authenticated requests into protobuf gRPC calls across Auth, Call, Knowledge-Base, and Payment services.",
+        },
+        {
+          id: "call-orch",
+          label: "Call & Version Service",
+          sublabel: "Published Runtime",
+          detail:
+            "Separates editing from execution — resolves published agent versions, models, voices, tools, and phone assignments per call.",
         },
         {
           id: "livekit",
-          label: "LiveKit Room",
-          sublabel: "Realtime SFU",
-          detail: "Low-latency media routing, participant state, and structured RPC data channels.",
+          label: "LiveKit Execution Plane",
+          sublabel: "SIP & WebRTC SFU",
+          detail:
+            "Full-duplex voice rooms hosting streaming Silero VAD, STT, LLM dialogue, RAG retrieval, tool execution, and ElevenLabs TTS.",
         },
         {
-          id: "perception",
-          label: "VAD + STT",
-          sublabel: "Streaming Audio",
-          detail: "Instant speech onset detection, barge-in handling, and streaming transcripts.",
+          id: "storage-billing",
+          label: "Domain Data & Ledger",
+          sublabel: "Postgres · Redis · GCS",
+          detail:
+            "Logical PostgreSQL domain isolation, Redis sessions/rate limits, GCS recordings/transcripts, and strict Payment service wallet settlement.",
         },
         {
-          id: "brain",
-          label: "LLM + Tools",
-          sublabel: "Dialogue & Workflows",
-          detail: "Context-aware reasoning paired with schema-validated workflow actions.",
-        },
-        {
-          id: "voice",
-          label: "ElevenLabs TTS",
-          sublabel: "Streaming Voice",
-          detail: "Natural chunked speech synthesis with word-aligned transcript sync.",
+          id: "observability",
+          label: "Voice Telemetry",
+          sublabel: "OpenTelemetry",
+          detail:
+            "Tracks stage timings separately from caller-observed voice-response latency with optional OpenTelemetry collector export.",
         },
       ],
       decisions: [
         {
-          title: "LiveKit as the real-time media core",
+          title: "Explicit control plane vs. voice execution plane split",
           detail:
-            "Standardizing on LiveKit WebRTC & SIP keeps phone calls and browser voice interfaces on one unified agent runtime.",
+            "Workers report usage and run live audio turns, but never mutate wallet balances or document chunking directly — every domain owns its state behind protobuf gRPC contracts.",
         },
         {
-          title: "Separation of reasoning and execution",
+          title: "Published agent versions decoupled from live edits",
           detail:
-            "The LLM interprets conversational intent while deterministic backend code validates and executes every workflow action.",
+            "Editing an agent never mutates an in-flight call; Call Service resolves immutable published snapshots at session dispatch.",
         },
         {
-          title: "Streaming-first turn architecture",
+          title: "Distinguishing stage timings from caller-observed latency",
           detail:
-            "VAD, STT, LLM tokens, and ElevenLabs TTS stream concurrently to keep conversational turn latency natural and interruptible.",
+            "Because streaming stages overlap while retrieval/tools introduce waits, OpenCalls instruments both component timings and true end-of-speech to first-audio latency via OpenTelemetry.",
         },
       ],
       contributions: [
-        "Founded OpenCalls and own end-to-end product vision, voice architecture, and full-stack implementation.",
-        "Engineered real-time voice agent pipelines spanning telephony (SIP) and web interfaces.",
-        "Designed natural dialogue orchestration and tool-driven workflow automation for real-world call scenarios.",
+        "Founded OpenCalls and architected the dual-plane voice platform spanning HTTP/gRPC backend services and LiveKit real-time workers.",
+        "Designed domain ownership across Auth, Call orchestration, Knowledge-Base retrieval, and Payment wallet settlement.",
+        "Built real-time SIP & WebRTC voice pipelines with structured tool execution and OpenTelemetry latency instrumentation.",
       ],
-      stack: ["LiveKit", "ElevenLabs TTS", "WebRTC", "SIP Telephony", "Python", "Next.js", "PostgreSQL"],
+      stack: [
+        "LiveKit",
+        "ElevenLabs TTS",
+        "WebRTC & SIP",
+        "gRPC / Protobuf",
+        "Python",
+        "Next.js",
+        "PostgreSQL",
+        "Redis",
+        "OpenTelemetry",
+      ],
     },
     {
       id: "ruh-ai-voice",
       name: "RUH AI Voice & Automation Systems",
-      tagline: "Production telephony & web voice agents paired with end-to-end workflow automation.",
+      tagline:
+        "Production telephony & web voice agents paired with end-to-end workflow automation.",
       category: "Voice Agents & Agentic Workflows",
       year: "2025 — 2026",
       status: "shipped",
@@ -382,7 +434,16 @@ export const PORTFOLIO = {
         "Integrated STT, TTS, and LLM dialogue systems for customer service, sales, and automated workflows.",
         "Delivered full-stack application surfaces and API integrations supporting agent deployments.",
       ],
-      stack: ["LiveKit", "Vocode", "LangChain", "AutoGen", "Next.js", "NestJS", "PostgreSQL", "GraphQL"],
+      stack: [
+        "LiveKit",
+        "Vocode",
+        "LangChain",
+        "AutoGen",
+        "Next.js",
+        "NestJS",
+        "PostgreSQL",
+        "GraphQL",
+      ],
     },
     {
       id: "invoiceo",
@@ -392,6 +453,8 @@ export const PORTFOLIO = {
       year: "2026",
       status: "active",
       locationOrContext: "Founder · November 2026",
+      liveUrl: "https://www.invoiceo.site",
+      liveLabel: "invoiceo.site",
       overview:
         "Founded invoiceo to build fast, focused software for billing and invoicing workflows using a clean modern full-stack architecture.",
       problem:
@@ -433,6 +496,98 @@ export const PORTFOLIO = {
     },
   ] as PortfolioProject[],
 
+  articles: [
+    {
+      id: "inside-opencalls",
+      title: "Inside OpenCalls: How Our Voice AI Services Work Together",
+      date: "Nov 2026",
+      category: "Voice Systems",
+      featured: true,
+      summary:
+        "How OpenCalls splits durable control-plane microservices (HTTP Gateway, protobuf gRPC Auth/Call/Knowledge-Base/Payment services) from the real-time LiveKit voice execution plane and OpenTelemetry observability.",
+      takeaways: [
+        "Control plane vs. execution plane isolation so audio workers never directly mutate wallet balances or vector indexes.",
+        "Immutable published agent versions decoupled from live edits.",
+        "Measuring caller-observed voice-response latency alongside individual stage timings.",
+      ],
+      tags: ["Voice AI", "gRPC", "LiveKit", "OpenTelemetry"],
+      url: "https://medium.com/@istekharkhan46/inside-opencalls-how-our-voice-ai-services-work-together-cf367000d753",
+    },
+    {
+      id: "observability-signoz",
+      title:
+        "Observability in Modern Systems: From Microservices to AI Applications using SigNoz & OpenTelemetry",
+      date: "Jan 2026",
+      category: "Observability",
+      summary:
+        "Instrumenting distributed microservices and AI pipelines end-to-end with OpenTelemetry traces, metrics, and SigNoz so production latency bottlenecks are measurable instead of guessed.",
+      takeaways: [
+        "Correlating traces across API boundaries, async queues, and model calls.",
+        "Practical OpenTelemetry instrumentation patterns for AI applications.",
+      ],
+      tags: ["OpenTelemetry", "SigNoz", "Microservices"],
+      url: "https://medium.com/@istekharkhan46/observability-in-modern-systems-from-microservices-to-ai-applications-using-signoz-and-d7d441871633",
+    },
+    {
+      id: "celery-rabbitmq-redis",
+      title: "Scaling AI Agents with Celery, RabbitMQ & Redis in Python",
+      date: "Jan 2026",
+      category: "Distributed Systems",
+      summary:
+        "Architecting resilient asynchronous execution pipelines for long-running AI agent workloads using RabbitMQ as the broker, Celery for distributed worker concurrency, and Redis for fast state storage.",
+      takeaways: [
+        "Decoupling slow agentic workflows from synchronous HTTP timeouts.",
+        "Retry strategies, backpressure handling, and distributed worker scaling.",
+      ],
+      tags: ["Celery", "RabbitMQ", "Redis", "Python"],
+      url: "https://medium.com/@istekharkhan46/scaling-ai-agents-with-celery-rabbitmq-redis-in-python-b30370a110a9",
+    },
+    {
+      id: "voice-agents-pain-points",
+      title: "What Building Voice Agents in 2025 Taught Us About Their Biggest Pain Points",
+      date: "Dec 2025",
+      category: "Voice Systems",
+      summary:
+        "Production lessons learned from real callers: why demos look easy while real telephony calls expose turn-taking failures, barge-in timing bugs, audio noise, and cascading pipeline latency.",
+      takeaways: [
+        "Why conversational turn-taking and barge-in matter more than benchmark demos.",
+        "Hard-won engineering patterns from real telephony and web voice sessions.",
+      ],
+      tags: ["Voice Agents", "Barge-In", "Production"],
+      url: "https://medium.com/@istekharkhan46/what-building-voice-agents-in-2025-taught-us-about-their-biggest-pain-points-c7ac2bddaf85",
+    },
+    {
+      id: "redis-lua-idempotency",
+      title:
+        "How I Solved Race Conditions and Idempotency Issues in Batch Processing Using Redis and Lua",
+      date: "Dec 2025",
+      category: "Distributed Systems",
+      summary:
+        "Using atomic Redis Lua scripts to eliminate concurrent race conditions and guarantee idempotent batch job execution without heavy database locks.",
+      takeaways: [
+        "Atomic check-and-set state transitions executed inside Redis via Lua.",
+        "Preventing duplicate execution across concurrent distributed workers.",
+      ],
+      tags: ["Redis", "Lua", "Concurrency", "Idempotency"],
+      url: "https://medium.com/@istekharkhan46/how-i-solved-race-conditions-and-idempotency-issues-in-batch-processing-using-redis-and-lua-9f399d2ad74a",
+    },
+    {
+      id: "architecting-voice-agents",
+      title:
+        "Architecting Production-Grade Voice Agents: A Practical Guide to Choosing the Right Stack",
+      date: "Dec 2025",
+      category: "Voice Systems",
+      summary:
+        "A practical engineering breakdown for choosing WebRTC vs. WebSockets, VAD, streaming STT, LLM orchestration, and TTS engines based on real latency and reliability constraints.",
+      takeaways: [
+        "Why production voice systems fail on architecture, not base LLM intelligence.",
+        "Trade-off matrix across transport, transcription, reasoning, and synthesis.",
+      ],
+      tags: ["Voice Stack", "Architecture", "WebRTC"],
+      url: "https://medium.com/@istekharkhan46/architecting-production-grade-voice-agents-a-practical-guide-to-choosing-the-right-stack-ead43c9882b3",
+    },
+  ] as EngineeringArticle[],
+
   experience: [
     {
       id: "opencalls",
@@ -448,9 +603,9 @@ export const PORTFOLIO = {
       summary:
         "Building AI voice agents that sound natural, act intelligently, and automate real conversations.",
       highlights: [
-        "Architecting real-time voice agent systems spanning telephony and web interfaces.",
-        "Integrating LiveKit WebRTC, streaming STT/TTS, and LLM orchestration for natural, low-latency dialogue.",
-        "Leading product direction, core engineering, and full-stack platform delivery.",
+        "Architected a dual-plane voice platform separating HTTP/gRPC control services (Auth, Call, Knowledge-Base, Payment) from LiveKit voice execution workers.",
+        "Integrated LiveKit WebRTC & SIP telephony, streaming STT/VAD, RAG retrieval, tool orchestration, and ElevenLabs TTS.",
+        "Instrumented per-stage and caller-observed voice latency with OpenTelemetry across production audio workflows.",
       ],
       trackLabel: "TRK 01 // OpenCalls",
     },
@@ -553,17 +708,27 @@ export const PORTFOLIO = {
         { name: "ElevenLabs TTS Plugin", projectIds: ["opencalls"] },
         { name: "Vocode", projectIds: ["ruh-ai-voice"] },
         { name: "SIP & Telephony", projectIds: ["opencalls", "ruh-ai-voice"] },
-        { name: "Streaming STT / VAD", projectIds: ["opencalls", "ruh-ai-voice"] },
+        { name: "Streaming STT / Silero VAD", projectIds: ["opencalls", "ruh-ai-voice"] },
       ],
     },
     {
       id: "ai",
-      name: "AI & LLM Frameworks",
+      name: "AI & Agent Orchestration",
       items: [
-        { name: "LangChain", projectIds: ["ruh-ai-voice"] },
-        { name: "AutoGen", projectIds: ["ruh-ai-voice"] },
+        { name: "LangChain & AutoGen", projectIds: ["ruh-ai-voice"] },
         { name: "LLM Dialogue Orchestration", projectIds: ["opencalls", "ruh-ai-voice"] },
-        { name: "Structured Tool Calling", projectIds: ["opencalls", "ruh-ai-voice"] },
+        { name: "Structured Tool Calling & RPC", projectIds: ["opencalls", "ruh-ai-voice"] },
+        { name: "RAG / Embeddings Retrieval", projectIds: ["opencalls"] },
+      ],
+    },
+    {
+      id: "distributed",
+      name: "Distributed Systems & Ops",
+      items: [
+        { name: "gRPC & Protobuf Services", projectIds: ["opencalls"] },
+        { name: "Redis & Atomic Lua Scripting", projectIds: ["opencalls"] },
+        { name: "Celery & RabbitMQ Queues", projectIds: ["ruh-ai-voice"] },
+        { name: "OpenTelemetry & SigNoz", projectIds: ["opencalls"] },
       ],
     },
     {
@@ -572,7 +737,7 @@ export const PORTFOLIO = {
       items: [
         { name: "TypeScript / JavaScript", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
         { name: "Python", projectIds: ["opencalls", "ruh-ai-voice"] },
-        { name: "C++", projectIds: [] },
+        { name: "C++ & Lua", projectIds: [] },
         { name: "SQL", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
       ],
     },
@@ -582,27 +747,18 @@ export const PORTFOLIO = {
       items: [
         { name: "Next.js & React", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
         { name: "Tailwind CSS", projectIds: ["opencalls", "invoiceo"] },
-        { name: "GSAP & Three.js / WebGL", projectIds: ["opencalls"] },
+        { name: "GSAP, Motion & Three.js", projectIds: ["opencalls"] },
         { name: "Shopify / HTML / CSS", projectIds: [] },
       ],
     },
     {
-      id: "backend",
-      name: "Backend Engineering",
+      id: "backend-data",
+      name: "Backend & Data",
       items: [
-        { name: "NestJS", projectIds: ["invoiceo", "ruh-ai-voice"] },
-        { name: "Node.js & Express (MERN)", projectIds: ["ruh-ai-voice"] },
-        { name: "GraphQL", projectIds: ["invoiceo", "ruh-ai-voice"] },
-        { name: "REST & Realtime RPC", projectIds: ["opencalls", "ruh-ai-voice"] },
-      ],
-    },
-    {
-      id: "data",
-      name: "Databases & Data Flow",
-      items: [
-        { name: "PostgreSQL", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
-        { name: "MongoDB", projectIds: ["ruh-ai-voice"] },
-        { name: "API & Workflow Integrations", projectIds: ["opencalls", "ruh-ai-voice"] },
+        { name: "NestJS & Node.js (MERN)", projectIds: ["invoiceo", "ruh-ai-voice"] },
+        { name: "GraphQL & REST Gateways", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
+        { name: "PostgreSQL & MongoDB", projectIds: ["opencalls", "invoiceo", "ruh-ai-voice"] },
+        { name: "Docker & Cloud Storage (GCS)", projectIds: ["opencalls"] },
       ],
     },
   ] as StackCategory[],

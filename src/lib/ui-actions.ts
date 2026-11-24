@@ -145,6 +145,7 @@ export interface SignalTraceEntry {
   id: string;
   timestamp: number;
   actionLabel: string;
+  payload?: string;
   ok: boolean;
   error?: string;
   metrics?: TurnLatencyMetrics;
@@ -158,6 +159,82 @@ export type AgentVisualState =
   | "executing"
   | "speaking"
   | "offline";
+
+export const AgentPersonaSchema = z.enum(["representative", "architect", "opencalls-demo"]);
+export type AgentPersonaId = z.infer<typeof AgentPersonaSchema>;
+
+export const AgentVoiceSchema = z.enum(["sarah", "alice", "bella"]);
+export type AgentVoiceKey = z.infer<typeof AgentVoiceSchema>;
+
+export const AGENT_VOICES: {
+  key: AgentVoiceKey;
+  label: string;
+  tone: string;
+  voiceId: string;
+}[] = [
+  {
+    key: "sarah",
+    label: "Sarah",
+    tone: "Confident · Warm",
+    voiceId: "EXAVITQu4vr4xnSDxMaL",
+  },
+  {
+    key: "alice",
+    label: "Alice",
+    tone: "Crisp · Editorial",
+    voiceId: "Xb7hH8MSUJpSbSDYk0k2",
+  },
+  {
+    key: "bella",
+    label: "Bella",
+    tone: "Bright · Natural",
+    voiceId: "hpp4J3VqNfWAUOO0d1Us",
+  },
+];
+
+export const AGENT_PERSONAS: {
+  id: AgentPersonaId;
+  label: string;
+  badge: string;
+  description: string;
+  prompts: string[];
+}[] = [
+  {
+    id: "representative",
+    label: "Portfolio Rep",
+    badge: "PORTFOLIO REP",
+    description: "Guided walkthrough of Istekhar's projects, articles, and experience.",
+    prompts: [
+      "What is OpenCalls?",
+      "How does OpenCalls' architecture work?",
+      "His voice AI stack?",
+      "Show his engineering articles",
+    ],
+  },
+  {
+    id: "architect",
+    label: "Systems Architect",
+    badge: "SYSTEMS ARCHITECT",
+    description: "Deep technical Q&A on gRPC control planes, LiveKit, Redis Lua, and latency.",
+    prompts: [
+      "Why split OpenCalls into two planes?",
+      "How did he solve Redis Lua idempotency?",
+      "How does he measure voice latency?",
+      "Explain Celery + RabbitMQ agent scaling",
+    ],
+  },
+  {
+    id: "opencalls-demo",
+    label: "OpenCalls Demo",
+    badge: "OPENCALLS LIVE DEMO",
+    description: "Test-drive an OpenCalls-style live AI receptionist handling a simulated call.",
+    prompts: [
+      "Hi, I want to book a demo call for my sales team",
+      "Can you qualify inbound phone leads 24/7?",
+      "How fast do you handle interruptions?",
+    ],
+  },
+];
 
 export function formatActionSignature(action: UiAction): string {
   switch (action.name) {

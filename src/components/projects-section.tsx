@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, ArrowUpRight, BookOpen, Layers } from "lucide-react";
+import { OpenCallsTopology } from "@/components/opencalls-topology";
 import { PORTFOLIO, type PortfolioProject } from "@/data/portfolio";
 import type { HighlightTarget, ProjectId, ProjectTab } from "@/lib/ui-actions";
 import { cn } from "@/lib/utils";
@@ -127,36 +128,8 @@ export function ProjectsSection({
               </div>
             </div>
 
-            {/* Dual-plane architecture preview */}
-            <div className="bg-[#121418] border border-[#2B303B] p-5 md:p-6 signal-grid">
-              <div className="flex items-center justify-between text-xs font-mono text-[#9499A3] pb-4 mb-5 border-b border-[#2B303B]">
-                <span>OPENCALLS // CONTROL &amp; VOICE PLANES</span>
-                <span className="text-[#38D9A9]">gRPC + LIVEKIT</span>
-              </div>
-
-              <div className="space-y-3">
-                {flagship.architectureNodes.map((node, idx) => (
-                  <div key={node.id} className="relative">
-                    <div className="flex items-center justify-between gap-4 px-4 py-3 bg-[#1A1D23] border border-[#2B303B]">
-                      <div>
-                        <div className="font-mono text-xs font-medium text-[#EFF0F1]">
-                          {node.label}
-                        </div>
-                        <div className="text-xs text-[#9499A3] mt-0.5">{node.detail}</div>
-                      </div>
-                      <span className="font-mono text-xs text-[#38D9A9] shrink-0">
-                        {node.sublabel}
-                      </span>
-                    </div>
-                    {idx < flagship.architectureNodes.length - 1 && (
-                      <div className="flex justify-center py-1" aria-hidden="true">
-                        <div className="w-px h-3 bg-[#FF9F38]/75" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Interactive Dual-Plane Systems Topology Simulator */}
+            <OpenCallsTopology />
           </div>
         </article>
 

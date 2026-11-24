@@ -15,7 +15,9 @@ import {
 import {
   formatActionSignature,
   UiActionSchema,
+  type AgentPersonaId,
   type AgentVisualState,
+  type AgentVoiceKey,
   type SignalTraceEntry,
   type TurnLatencyMetrics,
   type UiAction,
@@ -58,10 +60,15 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [traceLog, setTraceLog] = useState<SignalTraceEntry[]>([]);
   const [latestMetrics, setLatestMetrics] = useState<TurnLatencyMetrics | null>(null);
+  const [metricsHistory, setMetricsHistory] = useState<TurnLatencyMetrics[]>([]);
+  const [activePersona, setActivePersona] = useState<AgentPersonaId>("representative");
+  const [activeVoiceKey, setActiveVoiceKey] = useState<AgentVoiceKey>("sarah");
 
-  // Live audio levels (0..1) stored in refs for 60fps WebGL shader reading without React re-renders
+  // Live audio levels (0..1) and 64-band FFT spectra stored in refs for zero-GC 60fps WebGL/Canvas reading
   const micLevelRef = useRef(0);
   const agentLevelRef = useRef(0);
+  const micBinsRef = useRef<Uint8Array>(new Uint8Array(64));
+  const agentBinsRef = useRef<Uint8Array>(new Uint8Array(64));
 
   const roomRef = useRef<Room | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -107,6 +114,8 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
     }
     micLevelRef.current = 0;
     agentLevelRef.current = 0;
+    micBinsRef.current.fill(0);
+    agentBinsRef.current.fill(0);
     if (audioContextRef.current) {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
@@ -138,11 +147,17 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
         source.connect(analyser);
 
         const data = new Uint8Array(analyser.frequencyBinCount);
+        const destBins = target === "mic" ? micBinsRef.current : agentBinsRef.current;
         const sample = () => {
           analyser.getByteFrequencyData(data);
           let sum = 0;
           for (let i = 0; i < data.length; i++) {
             sum += data[i];
+          }
+          // Copy lower 64 voice-band bins (approx 0-11kHz at 44.1/48kHz) into pre-allocated buffer
+          const binCount = Math.min(destBins.length, data.length);
+          for (let i = 0; i < binCount; i++) {
+            destBins[i] = data[i];
           }
           const avg = sum / (data.length * 255);
           const boosted = Math.min(1, avg * 2.4);
@@ -176,9 +191,21 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   }, [serverConfigured, stopAudioMonitors]);
 
   const connect = useCallback(
-    async ({ enableMic }: { enableMic: boolean }) => {
+    async ({
+      enableMic,
+      persona,
+      voiceKey,
+    }: {
+      enableMic: boolean;
+      persona?: AgentPersonaId;
+      voiceKey?: AgentVoiceKey;
+    }) => {
       setConnectionError(null);
       setMicPermissionError(null);
+      const chosenPersona = persona ?? activePersona;
+      const chosenVoice = voiceKey ?? activeVoiceKey;
+      setActivePersona(chosenPersona);
+      setActiveVoiceKey(chosenVoice);
 
       if (roomRef.current && roomRef.current.state === ConnectionState.Connected) {
         if (enableMic && !micEnabled) {
@@ -200,7 +227,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
         const res = await fetch("/api/livekit/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ persona: chosenPersona, voiceKey: chosenVoice }),
         });
 
         const data = (await res.json()) as {
@@ -242,6 +269,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
                   id: crypto.randomUUID(),
                   timestamp: Date.now(),
                   actionLabel: "invalid_action_rejected",
+                  payload: rpcData.payload,
                   ok: false,
                   error: "Schema validation rejected agent payload",
                 },
@@ -261,6 +289,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
                 id: crypto.randomUUID(),
                 timestamp: Date.now(),
                 actionLabel: signature,
+                payload: JSON.stringify(action, null, 2),
                 ok: outcome.ok,
                 error: outcome.ok ? undefined : outcome.detail,
               },
@@ -345,10 +374,12 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
                 (parsed.sttMs ?? 0) +
                 (parsed.llmTtftMs ?? 0) +
                 (parsed.ttsTtfbMs ?? 0);
-              setLatestMetrics({
+              const nextMetric: TurnLatencyMetrics = {
                 ...parsed,
                 totalMs: total > 0 ? total : undefined,
-              });
+              };
+              setLatestMetrics(nextMetric);
+              setMetricsHistory((prev) => [nextMetric, ...prev.slice(0, 11)]);
             } catch {
               // Ignore malformed metrics packets
             }
@@ -398,7 +429,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
         return false;
       }
     },
-    [micEnabled, startAudioMonitor, stopAudioMonitors]
+    [activePersona, activeVoiceKey, micEnabled, startAudioMonitor, stopAudioMonitors]
   );
 
   const toggleMic = useCallback(async () => {
@@ -416,6 +447,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
         startAudioMonitor(pub.track.mediaStream, "mic");
       } else if (!next) {
         micLevelRef.current = 0;
+        micBinsRef.current.fill(0);
       }
     } catch {
       setMicPermissionError(
@@ -485,14 +517,19 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
     serverConfigured,
     connected,
     agentState,
+    activePersona,
+    activeVoiceKey,
     micEnabled,
     micPermissionError,
     connectionError,
     transcript,
     traceLog,
     latestMetrics,
+    metricsHistory,
     micLevelRef,
     agentLevelRef,
+    micBinsRef,
+    agentBinsRef,
     audioContainerRef,
     connect,
     disconnect,

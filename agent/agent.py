@@ -32,7 +32,7 @@ from livekit.agents import (
 )
 from livekit.plugins import elevenlabs, google, silero
 
-from portfolio_context import PORTFOLIO_INSTRUCTIONS
+from portfolio_context import build_greeting, build_instructions
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env.local")
@@ -95,16 +95,12 @@ async def dispatch_ui_action(name: str, args: dict) -> str:
 
 
 class SignalRoomRepresentative(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=PORTFOLIO_INSTRUCTIONS)
+    def __init__(self, persona: str = "representative") -> None:
+        self._persona = persona
+        super().__init__(instructions=build_instructions(persona))
 
     async def on_enter(self) -> None:
-        await self.session.generate_reply(
-            instructions=(
-                "Give a brief, natural 1-sentence welcome as Istekhar Khan's voice representative. "
-                "Mention you can walk them through OpenCalls, his voice AI engineering, or his experience."
-            )
-        )
+        await self.session.generate_reply(instructions=build_greeting(self._persona))
 
     @function_tool()
     async def navigate_to_section(
@@ -219,13 +215,36 @@ class SignalRoomRepresentative(Agent):
         raise StopResponse()
 
 
+ALLOWED_ELEVENLABS_VOICE_IDS = {
+    "EXAVITQu4vr4xnSDxMaL",  # Sarah
+    "Xb7hH8MSUJpSbSDYk0k2",  # Alice
+    "hpp4J3VqNfWAUOO0d1Us",  # Bella
+}
+
+
 @server.rtc_session(agent_name=AGENT_NAME)
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
 
+    persona = "representative"
+    default_voice_id = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+    resolved_voice_id = default_voice_id
+    raw_meta = getattr(ctx.job, "metadata", "") or ""
+    if raw_meta:
+        try:
+            parsed_meta = json.loads(raw_meta)
+            if isinstance(parsed_meta, dict):
+                if isinstance(parsed_meta.get("persona"), str):
+                    persona = parsed_meta["persona"]
+                requested_voice = parsed_meta.get("voiceId")
+                if isinstance(requested_voice, str) and requested_voice in ALLOWED_ELEVENLABS_VOICE_IDS:
+                    resolved_voice_id = requested_voice
+        except Exception:
+            logger.debug("Ignoring non-JSON job metadata")
+
     # ElevenLabs TTS plugin inside LiveKit (requires ELEVEN_API_KEY)
     tts_plugin = elevenlabs.TTS(
-        voice_id=os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL"),
+        voice_id=resolved_voice_id,
         model=os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5"),
     )
 
@@ -331,7 +350,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await session.start(
         room=ctx.room,
-        agent=SignalRoomRepresentative(),
+        agent=SignalRoomRepresentative(persona=persona),
     )
 
 

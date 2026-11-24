@@ -9,6 +9,10 @@ interface JarvisCoreSceneProps {
   state: AgentVisualState;
   micLevelRef: React.MutableRefObject<number>;
   agentLevelRef: React.MutableRefObject<number>;
+  micBinsRef?: React.MutableRefObject<Uint8Array>;
+  agentBinsRef?: React.MutableRefObject<Uint8Array>;
+  pointerTargetRef: React.MutableRefObject<{ x: number; y: number }>;
+  hoveredRef: React.MutableRefObject<boolean>;
   reducedMotion: boolean;
 }
 
@@ -45,7 +49,12 @@ function buildSegmentedArcRing(
   return new THREE.LineSegments(geo, mat);
 }
 
-function buildWaveLoop(segments: number, radius: number, color: string, opacity: number): THREE.Line {
+function buildWaveLoop(
+  segments: number,
+  radius: number,
+  color: string,
+  opacity: number
+): THREE.Line {
   const positions = new Float32Array((segments + 1) * 3);
   for (let i = 0; i <= segments; i++) {
     const a = (i / segments) * Math.PI * 2;
@@ -67,6 +76,10 @@ function JarvisCoreScene({
   state,
   micLevelRef,
   agentLevelRef,
+  micBinsRef,
+  agentBinsRef,
+  pointerTargetRef,
+  hoveredRef,
   reducedMotion,
 }: JarvisCoreSceneProps) {
   const rootRef = useRef<THREE.Group>(null);
@@ -77,8 +90,15 @@ function JarvisCoreScene({
   const gyroBRef = useRef<THREE.Group>(null);
   const gyroCRef = useRef<THREE.Group>(null);
   const dialRef = useRef<THREE.Group>(null);
+  const coreLightRef = useRef<THREE.PointLight>(null);
+  const pulseRingRefs = useRef<(THREE.Mesh | null)[]>([null, null, null]);
   const tmpScaleVec = useRef(new THREE.Vector3(1, 1, 1));
   const tmpTargetColor = useRef(new THREE.Color("#FF9F38"));
+  const smoothPointer = useRef({ x: 0, y: 0 });
+  const hoverEnergy = useRef(0);
+  const speakEnergy = useRef(0);
+  const pulsePhase = useRef(0);
+  const smoothedBins = useRef(new Float32Array(64));
 
   const waveSegments = 144;
   const spectrumBars = 64;
@@ -153,10 +173,8 @@ function JarvisCoreScene({
     );
 
     const chPts = new Float32Array([
-      -2.55, 0, 0, -2.28, 0, 0,
-      2.28, 0, 0, 2.55, 0, 0,
-      0, -2.55, 0, 0, -2.28, 0,
-      0, 2.28, 0, 0, 2.55, 0,
+      -2.55, 0, 0, -2.28, 0, 0, 2.28, 0, 0, 2.55, 0, 0, 0, -2.55, 0, 0, -2.28, 0, 0, 2.28, 0, 0,
+      2.55, 0,
     ]);
     const chGeo = new THREE.BufferGeometry();
     chGeo.setAttribute("position", new THREE.BufferAttribute(chPts, 3));
@@ -182,7 +200,7 @@ function JarvisCoreScene({
     const specMat = new THREE.LineBasicMaterial({
       color: new THREE.Color("#FF9F38"),
       transparent: true,
-      opacity: 0.88,
+      opacity: 0.9,
     });
     const spectrum = new THREE.LineSegments(specGeo, specMat);
 
@@ -250,6 +268,16 @@ function JarvisCoreScene({
     const t = frameState.clock.elapsedTime;
     const mic = micLevelRef.current;
     const agent = agentLevelRef.current;
+    const activeBins =
+      state === "speaking" && agent > 0.02
+        ? agentBinsRef?.current
+        : mic > 0.02
+          ? micBinsRef?.current
+          : agent > 0.02
+            ? agentBinsRef?.current
+            : undefined;
+    const hasLiveSpectrum = Boolean(activeBins && (mic > 0.02 || agent > 0.02));
+
     const energy =
       state === "listening"
         ? Math.max(0.28, mic)
@@ -261,20 +289,91 @@ function JarvisCoreScene({
               ? 0.48
               : 0.14;
 
+    // Smoothly damp cursor parallax, hover wave excitation, and speaking vocal drive
+    const ptrDamp = Math.min(1, delta * 5.5);
+    smoothPointer.current.x += (pointerTargetRef.current.x - smoothPointer.current.x) * ptrDamp;
+    smoothPointer.current.y += (pointerTargetRef.current.y - smoothPointer.current.y) * ptrDamp;
+    const targetHover = hoveredRef.current && !reducedMotion ? 1 : 0;
+    hoverEnergy.current += (targetHover - hoverEnergy.current) * Math.min(1, delta * 6.5);
+    const hoverAmt = hoverEnergy.current;
+    const pointerAngle = Math.atan2(-smoothPointer.current.y, smoothPointer.current.x);
+
+    const targetSpeak = state === "speaking" ? 1 : 0;
+    speakEnergy.current += (targetSpeak - speakEnergy.current) * Math.min(1, delta * 7.5);
+    const speakAmt = speakEnergy.current;
+    // Combine real ElevenLabs FFT amplitude with natural speech syllable cadence so speaking is always expressive
+    const syllableCadence =
+      0.42 +
+      0.34 * Math.abs(Math.sin(t * 7.2)) +
+      0.24 * Math.abs(Math.sin(t * 13.4 + 0.8));
+    const speakDrive = speakAmt * Math.max(agent * 1.15, syllableCadence * 0.72);
+
     if (rootRef.current) {
       const targetScale =
         state === "executing"
           ? 1.07
           : state === "speaking"
-            ? 1.0 + agent * 0.1
+            ? 1.02 + speakDrive * 0.1
             : state === "listening"
               ? 0.98 + mic * 0.08
               : 1.0 + (reducedMotion ? 0 : Math.sin(t * 1.3) * 0.015);
       tmpScaleVec.current.set(targetScale, targetScale, targetScale);
       rootRef.current.scale.lerp(tmpScaleVec.current, Math.min(1, delta * 7));
       if (!reducedMotion) {
-        rootRef.current.rotation.y = Math.sin(t * 0.35) * 0.18;
-        rootRef.current.rotation.x = Math.cos(t * 0.28) * 0.12;
+        rootRef.current.rotation.y = Math.sin(t * 0.35) * 0.16 + smoothPointer.current.x * 0.34;
+        rootRef.current.rotation.x = Math.cos(t * 0.28) * 0.1 - smoothPointer.current.y * 0.28;
+      }
+    }
+
+    // Dynamic vocal lighting & breathing nucleus + particle cloud during speech
+    if (coreLightRef.current) {
+      coreLightRef.current.intensity = 2.6 + speakDrive * 3.4 + hoverAmt * 0.6;
+    }
+
+    if (innerLatticeRef.current) {
+      const innerScale = 1 + speakDrive * 0.32 + hoverAmt * 0.06;
+      innerLatticeRef.current.scale.setScalar(innerScale);
+      const innerMat = innerLatticeRef.current.material as THREE.MeshStandardMaterial;
+      innerMat.emissiveIntensity =
+        state === "speaking"
+          ? 1.25 + speakDrive * 1.35
+          : state === "executing"
+            ? 1.65
+            : 0.95 + hoverAmt * 0.3;
+    }
+
+    if (neuralSphereRef.current) {
+      const outerScale = 1 + speakDrive * 0.18 + hoverAmt * 0.04;
+      neuralSphereRef.current.scale.setScalar(outerScale);
+      const outerMat = neuralSphereRef.current.material as THREE.MeshStandardMaterial;
+      outerMat.emissiveIntensity =
+        state === "speaking" ? 0.95 + speakDrive * 1.05 : 0.68 + hoverAmt * 0.22;
+    }
+
+    if (particleShellRef.current) {
+      const pScale = 1 + speakDrive * 0.24 + (state === "listening" ? mic * 0.12 : 0);
+      particleShellRef.current.scale.setScalar(pScale);
+      assets.pMat.size = 0.048 + speakDrive * 0.028;
+    }
+
+    // Radiating 3D vocal shockwave rings when agent is speaking
+    if (!reducedMotion) {
+      pulsePhase.current = (pulsePhase.current + delta * (0.68 + speakDrive * 0.85)) % 1;
+    }
+    for (let i = 0; i < 3; i++) {
+      const ring = pulseRingRefs.current[i];
+      if (!ring) continue;
+      const p = (pulsePhase.current + i / 3) % 1;
+      const mat = ring.material as THREE.MeshBasicMaterial;
+      if (speakAmt > 0.02 && !reducedMotion) {
+        const ringScale = 0.68 + p * 1.85;
+        ring.scale.setScalar(ringScale);
+        ring.position.z = Math.sin(p * Math.PI) * 0.25;
+        mat.opacity = Math.pow(1 - p, 1.55) * (0.28 + speakDrive * 0.55) * speakAmt;
+        ring.visible = true;
+      } else {
+        mat.opacity = 0;
+        ring.visible = false;
       }
     }
 
@@ -285,7 +384,7 @@ function JarvisCoreScene({
           : state === "executing"
             ? 2.8
             : state === "speaking"
-              ? 0.8 + agent * 1.4
+              ? 1.05 + speakDrive * 1.75
               : state === "listening"
                 ? 0.65 + mic * 1.1
                 : 0.26;
@@ -303,35 +402,64 @@ function JarvisCoreScene({
         particleShellRef.current.rotation.z -= delta * 0.14;
       }
       if (gyroARef.current) {
-        gyroARef.current.rotation.z += delta * (state === "thinking" ? 1.5 : 0.3);
-        gyroARef.current.rotation.x = Math.sin(t * 0.48) * 0.42;
-        gyroARef.current.rotation.y = Math.cos(t * 0.38) * 0.36;
+        gyroARef.current.rotation.z +=
+          delta * (state === "thinking" ? 1.5 : state === "speaking" ? 0.75 + speakDrive * 0.8 : 0.3);
+        gyroARef.current.rotation.x = Math.sin(t * 0.48) * 0.42 + smoothPointer.current.y * 0.2;
+        gyroARef.current.rotation.y = Math.cos(t * 0.38) * 0.36 + smoothPointer.current.x * 0.2;
       }
       if (gyroBRef.current) {
-        gyroBRef.current.rotation.z -= delta * (state === "thinking" ? 1.85 : 0.38);
-        gyroBRef.current.rotation.x = Math.cos(t * 0.55) * 0.46;
-        gyroBRef.current.rotation.y = Math.sin(t * 0.42) * 0.42;
+        gyroBRef.current.rotation.z -=
+          delta * (state === "thinking" ? 1.85 : state === "speaking" ? 0.92 + speakDrive * 0.9 : 0.38);
+        gyroBRef.current.rotation.x = Math.cos(t * 0.55) * 0.46 - smoothPointer.current.y * 0.18;
+        gyroBRef.current.rotation.y = Math.sin(t * 0.42) * 0.42 - smoothPointer.current.x * 0.18;
       }
       if (gyroCRef.current) {
-        gyroCRef.current.rotation.z += delta * (state === "executing" ? 2.5 : 0.48);
+        gyroCRef.current.rotation.z +=
+          delta * (state === "executing" ? 2.5 : state === "speaking" ? 1.2 + speakDrive * 1.1 : 0.48);
       }
       if (dialRef.current) {
-        dialRef.current.rotation.z -= delta * (state === "thinking" ? 0.55 : 0.07);
+        dialRef.current.rotation.z -=
+          delta * (state === "thinking" ? 0.55 : state === "speaking" ? 0.22 + speakDrive * 0.25 : 0.07);
       }
     }
 
     const specMat = assets.spectrum.material as THREE.LineBasicMaterial;
-    const targetHex = state === "listening" ? "#38D9A9" : state === "executing" ? "#FF5A1F" : "#FF9F38";
+    const targetHex =
+      state === "listening"
+        ? "#38D9A9"
+        : state === "executing"
+          ? "#FF5A1F"
+          : state === "speaking"
+            ? "#FF7A2F"
+            : "#FF9F38";
     tmpTargetColor.current.set(targetHex);
     specMat.color.lerp(tmpTargetColor.current, Math.min(1, delta * 8));
 
+    // Real 64-band FFT spectrum when audio is active; expressive vocal & hover waves otherwise
     const specAttr = assets.spectrum.geometry.attributes.position as THREE.BufferAttribute;
+    const binLerp = Math.min(1, delta * 18);
     for (let i = 0; i < spectrumBars; i++) {
       const a = (i / spectrumBars) * Math.PI * 2;
-      const harmonic = reducedMotion
-        ? 0.05
-        : Math.abs(Math.sin(a * 6 + t * 4.4) * Math.cos(a * 3 - t * 2.5));
-      const len = 0.06 + harmonic * (0.12 + energy * 0.42);
+      let targetNorm: number;
+      if (hasLiveSpectrum && activeBins) {
+        const mirroredIdx = i < 32 ? i : 63 - i;
+        targetNorm = Math.min(1, activeBins[mirroredIdx] / 255 + speakDrive * 0.18);
+      } else {
+        const angularProx = Math.pow(Math.max(0, Math.cos(a - pointerAngle)), 3);
+        const waveBoost = hoverAmt * (0.28 + angularProx * 0.58) + speakDrive * 0.72;
+        const speedMult = 1 + hoverAmt * 0.7 + speakDrive * 1.35;
+        targetNorm = reducedMotion
+          ? 0.06
+          : Math.abs(
+              Math.sin(a * 6 + t * 4.4 * speedMult) * Math.cos(a * 3 - t * 2.5 * speedMult)
+            ) *
+              (0.28 + energy * 0.8 + waveBoost) +
+            angularProx * hoverAmt * 0.25 +
+            speakDrive * 0.18 * Math.abs(Math.sin(a * 10 - t * 9.5));
+      }
+      smoothedBins.current[i] += (targetNorm - smoothedBins.current[i]) * binLerp;
+
+      const len = 0.06 + smoothedBins.current[i] * (hasLiveSpectrum || speakAmt > 0.2 ? 0.62 : 0.42);
       const r0 = 1.56;
       const r1 = r0 + len;
       specAttr.setXYZ(i * 2, Math.cos(a) * r0, Math.sin(a) * r0, 0.06);
@@ -341,34 +469,56 @@ function JarvisCoreScene({
 
     const aAttr = assets.amberWave.geometry.attributes.position as THREE.BufferAttribute;
     const mAttr = assets.mintWave.geometry.attributes.position as THREE.BufferAttribute;
-    const aAmp = state === "speaking" ? 0.06 + agent * 0.22 : state === "executing" ? 0.14 : 0.032;
-    const mAmp = state === "listening" ? 0.06 + mic * 0.22 : 0.026;
+    const aAmp =
+      (state === "executing" ? 0.14 : 0.036) + speakDrive * 0.26 + hoverAmt * 0.11;
+    const mAmp =
+      (state === "listening" ? 0.06 + mic * 0.24 : 0.03) + speakDrive * 0.14 + hoverAmt * 0.095;
+    const waveSpeed = 1 + hoverAmt * 1.15 + speakDrive * 1.65;
 
     for (let i = 0; i <= waveSegments; i++) {
       const a = (i / waveSegments) * Math.PI * 2;
+      const cursorCrest = hoverAmt * Math.pow(Math.max(0, Math.cos(a - pointerAngle)), 4);
       const wA = reducedMotion
         ? 0
-        : Math.sin(a * 8 - t * 3.4) * aAmp + Math.cos(a * 13 + t * 2.1) * (aAmp * 0.4);
-      aAttr.setXYZ(i, Math.cos(a) * (1.88 + wA), Math.sin(a) * (1.88 + wA), 0.04);
+        : Math.sin(a * 8 - t * 3.4 * waveSpeed) * aAmp +
+          Math.cos(a * 13 + t * 2.1 * waveSpeed) * (aAmp * 0.45) +
+          Math.sin(a * 18 - t * 6.5) * cursorCrest * 0.14;
+      const zA = reducedMotion ? 0.04 : 0.04 + Math.sin(a * 5 + t * 7.5) * speakDrive * 0.24;
+      aAttr.setXYZ(i, Math.cos(a) * (1.88 + wA), Math.sin(a) * (1.88 + wA), zA);
 
       const wM = reducedMotion
         ? 0
-        : Math.sin(a * 7 + t * 3.0) * mAmp + Math.cos(a * 11 - t * 1.8) * (mAmp * 0.45);
-      mAttr.setXYZ(i, Math.cos(a) * (1.42 + wM), Math.sin(a) * (1.42 + wM), 0.05);
+        : Math.sin(a * 7 + t * 3.0 * waveSpeed) * mAmp +
+          Math.cos(a * 11 - t * 1.8 * waveSpeed) * (mAmp * 0.48) +
+          Math.cos(a * 16 + t * 5.8) * cursorCrest * 0.12;
+      const zM = reducedMotion ? 0.05 : 0.05 + Math.cos(a * 6 - t * 6.2) * speakDrive * 0.18;
+      mAttr.setXYZ(i, Math.cos(a) * (1.42 + wM), Math.sin(a) * (1.42 + wM), zM);
     }
     aAttr.needsUpdate = true;
     mAttr.needsUpdate = true;
   });
 
   const coreColor =
-    state === "listening"
-      ? "#38D9A9"
-      : state === "executing"
-        ? "#FF5A1F"
-        : "#FF9F38";
+    state === "listening" ? "#38D9A9" : state === "executing" ? "#FF5A1F" : "#FF9F38";
 
   return (
     <group ref={rootRef}>
+      <pointLight ref={coreLightRef} position={[0, 0, 2.2]} intensity={2.6} color="#FF9F38" />
+
+      {/* 3 radiating vocal shockwave rings (visible & pulsing when agent is speaking) */}
+      {(["#FF9F38", "#FF5A1F", "#FFB85C"] as const).map((ringColor, idx) => (
+        <mesh
+          key={ringColor}
+          ref={(el) => {
+            pulseRingRefs.current[idx] = el;
+          }}
+          visible={false}
+        >
+          <torusGeometry args={[1.05, 0.016, 12, 96]} />
+          <meshBasicMaterial color={ringColor} transparent opacity={0} />
+        </mesh>
+      ))}
+
       <mesh ref={innerLatticeRef}>
         <icosahedronGeometry args={[0.52, 1]} />
         <meshStandardMaterial
@@ -436,6 +586,8 @@ interface AcousticIrisProps {
   state: AgentVisualState;
   micLevelRef: React.MutableRefObject<number>;
   agentLevelRef: React.MutableRefObject<number>;
+  micBinsRef?: React.MutableRefObject<Uint8Array>;
+  agentBinsRef?: React.MutableRefObject<Uint8Array>;
   onActivate?: () => void;
 }
 
@@ -443,10 +595,16 @@ export function AcousticIris({
   state,
   micLevelRef,
   agentLevelRef,
+  micBinsRef,
+  agentBinsRef,
   onActivate,
 }: AcousticIrisProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pointerTargetRef = useRef({ x: 0, y: 0 });
+  const hoveredRef = useRef(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [webglOk, setWebglOk] = useState(true);
+  const [inView, setInView] = useState(true);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -463,12 +621,51 @@ export function AcousticIris({
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Pause 3D render loop when scrolled off-screen to preserve 60fps across the page
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        setInView(entries[0]?.isIntersecting ?? true);
+      },
+      { threshold: 0.02 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const handlePointerEnter = () => {
+    hoveredRef.current = true;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    hoveredRef.current = true;
+    if (reducedMotion || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+    pointerTargetRef.current.x = Math.max(-1, Math.min(1, nx));
+    pointerTargetRef.current.y = Math.max(-1, Math.min(1, ny));
+  };
+
+  const handlePointerLeave = () => {
+    hoveredRef.current = false;
+    pointerTargetRef.current.x = 0;
+    pointerTargetRef.current.y = 0;
+  };
+
   return (
     <div
+      ref={containerRef}
+      onPointerEnter={handlePointerEnter}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
       className="relative w-full max-w-[390px] aspect-square mx-auto select-none"
       role="img"
       aria-label={`J.A.R.V.I.S.-inspired holographic voice core, current state: ${state}`}
     >
+      {/* Calibrated axis crosshairs */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-0 right-0 top-1/2 h-px bg-[#FF9F38]/14"
@@ -477,16 +674,57 @@ export function AcousticIris({
         aria-hidden="true"
         className="pointer-events-none absolute top-0 bottom-0 left-1/2 w-px bg-[#FF9F38]/14"
       />
+
+      {/* Precision telemetry corner markings */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-8 rounded-full"
+        className="pointer-events-none absolute top-2 left-2 font-mono text-[10px] tracking-wider text-[#9499A3]/80 telemetry-nums"
+      >
+        FFT // 64-BAND
+      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-2 right-2 font-mono text-[10px] tracking-wider text-[#9499A3]/80 telemetry-nums"
+      >
+        {state === "listening"
+          ? "RX // MIC ACTIVE"
+          : state === "speaking"
+            ? "TX // TTS STREAM"
+            : "GYRO // TRACKING"}
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-8 rounded-full transition-opacity duration-300"
         style={{
           background:
             state === "listening"
-              ? "radial-gradient(circle, rgba(56,217,169,0.18) 0%, rgba(18,20,24,0) 68%)"
-              : "radial-gradient(circle, rgba(255,159,56,0.2) 0%, rgba(255,90,31,0.08) 38%, rgba(18,20,24,0) 70%)",
+              ? "radial-gradient(circle, rgba(56,217,169,0.22) 0%, rgba(18,20,24,0) 68%)"
+              : state === "speaking"
+                ? "radial-gradient(circle, rgba(255,159,56,0.34) 0%, rgba(255,90,31,0.16) 40%, rgba(18,20,24,0) 72%)"
+                : "radial-gradient(circle, rgba(255,159,56,0.2) 0%, rgba(255,90,31,0.08) 38%, rgba(18,20,24,0) 70%)",
         }}
       />
+
+      {/* Expanding acoustic ripple rings when agent is actively speaking */}
+      {state === "speaking" && !reducedMotion && (
+        <>
+          <div
+            aria-hidden="true"
+            className="voice-ripple pointer-events-none absolute inset-4 rounded-full border border-[#FF9F38]/70"
+          />
+          <div
+            aria-hidden="true"
+            className="voice-ripple pointer-events-none absolute inset-4 rounded-full border border-[#FF5A1F]/65"
+            style={{ animationDelay: "0.55s" }}
+          />
+          <div
+            aria-hidden="true"
+            className="voice-ripple pointer-events-none absolute inset-4 rounded-full border border-[#FF9F38]/55"
+            style={{ animationDelay: "1.1s" }}
+          />
+        </>
+      )}
 
       {webglOk ? (
         <div
@@ -495,6 +733,7 @@ export function AcousticIris({
           title="Click to activate voice session"
         >
           <Canvas
+            frameloop={inView ? "always" : "never"}
             dpr={[1, 2]}
             camera={{ position: [0, 0, 5.8], fov: 46 }}
             gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
@@ -507,6 +746,10 @@ export function AcousticIris({
               state={state}
               micLevelRef={micLevelRef}
               agentLevelRef={agentLevelRef}
+              micBinsRef={micBinsRef}
+              agentBinsRef={agentBinsRef}
+              pointerTargetRef={pointerTargetRef}
+              hoveredRef={hoveredRef}
               reducedMotion={reducedMotion}
             />
           </Canvas>
@@ -573,6 +816,7 @@ export function MiniAcousticIris({
         r="6.5"
         fill={accent}
         fillOpacity={state === "speaking" || state === "listening" ? 0.92 : 0.5}
+        className={state === "speaking" ? "signal-pulse" : ""}
       />
       <line x1="2" y1="32" x2="9" y2="32" stroke={accent} strokeWidth="1" opacity="0.7" />
       <line x1="55" y1="32" x2="62" y2="32" stroke={accent} strokeWidth="1" opacity="0.7" />

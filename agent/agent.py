@@ -183,6 +183,11 @@ class SignalRoomRepresentative(Agent):
         return await dispatch_ui_action("close_active_panel", {})
 
     @function_tool()
+    async def start_autopilot_tour(self, context: RunContext) -> str:
+        """Launch the visual Auto-UI Pilot guided tour across Voice Lab, OpenCalls, Writing, Experience, and Contact."""
+        return await dispatch_ui_action("start_autopilot_tour", {})
+
+    @function_tool()
     async def end_voice_session(
         self,
         context: RunContext,

@@ -35,7 +35,7 @@
 - ISE-2 DONE: Implement and test the isolated call model and interactive recorder.
 - ISE-3 DONE: Integrate it into Voice Lab; simplify hero/offline presentation; preserve advanced tools and tour behavior.
 - ISE-4 DONE: Verify model invariants, production build/types, desktop/mobile/keyboard/reduced-motion behavior, and final visual hierarchy.
-- ISE-5 IN PROGRESS: Record evidence and publish the updated frontend through the established GitHub/Render flow.
+- ISE-5 DONE: Record evidence and publish the updated frontend through the established GitHub/Render flow.
 
 ## D. Work Evidence
 
@@ -58,11 +58,15 @@
 - Pre-existing drift: DESIGN.md's older palette table differs from the baseline CSS values. This task changes no palette tokens; preserved that table and reported the discrepancy, following the skill's explicit instruction not to repair pre-existing drift during an ordinary extension.
 - Final independent verdict: `ship` for the scored correction batch. Reviewer scored all three requested fixes resolved, accepted all final captures, and observed no regression from that batch. This is not a claim of whole-surface certification or an award-level aesthetic result.
 - Final production build/type checking and diff whitespace checks pass. No provider secrets, new packages, hosting configuration files, or agent worker changes were introduced.
+- Reviewed source changes pushed as `2bc42457bd72df86b670aa7f77c96d6aa14f03ee` on `feat/interactive-acoustic-upgrades`. Render automatically started `dep-dc4782i9lscs73dvpskg` from that exact commit (`trigger: new_commit`).
+- Render CLI confirms `dep-dc4782i9lscs73dvpskg` finished with `status: live` for that exact source revision.
+- Public browser verification at https://signal-room-portfolio.onrender.com passed: homepage 200, new lab heading and visitor-facing core caption, active snapshot pinning after prompt publication, interruption during speaking, repeated completion delivery (2 deliveries / 1 side effect), correct public social-image origin, mobile menu/hash navigation without a drawer, no horizontal mobile overflow, and zero console errors. The existing Three.js Clock warning remains.
+- Agent deployment remains deferred. Lint remains blocked by the pre-existing missing ESLint configuration; no full-application lint pass is claimed. No real voice/provider session was exercised.
 
 ## E. Recovery State
 
-- Current task: ISE-5. Next: commit/push the reviewed changes, confirm the Render deployment of that source revision becomes live, and smoke-test the new public lab.
+- Complete: source `2bc42457bd72df86b670aa7f77c96d6aa14f03ee` is live and publicly verified. The final documentation-only update records the evidence; ignored `docs/**` does not trigger a rebuild.
 - All changes from the prior deployment are committed; current starting source branch is `feat/interactive-acoustic-upgrades` at `607c7d4`.
 - Existing frontend: https://signal-room-portfolio.onrender.com, Render service `srv-dc46p4vf3r2c73af9060`.
 - No agent worker changes or secret transfers are required.
-- An existing user dev server is running on port 3000. Do not stop it. Local browser development checks stubbed only `/api/livekit/status` to match Render's unconfigured voice state; final checks use a separate production server on port 3100 with empty voice environment variables.
+- The pre-existing user dev server on port 3000 was left untouched. Local production verification used port 3100 with empty voice variables; that temporary server has been stopped. Public production verification used no status stubs.

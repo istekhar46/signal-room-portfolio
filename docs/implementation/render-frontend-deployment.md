@@ -74,3 +74,9 @@ The later [AWS API migration](aws-token-api-deployment.md) moves the token/statu
 routes off Render and removes its private LiveKit credentials. Render then serves
 the frontend using `NEXT_PUBLIC_API_BASE_URL`; follow that record for current
 deployment status and API ownership.
+
+The subsequent [Render static-site migration](render-static-frontend.md) replaces
+the Node frontend with `signal-room-portfolio-static`, publishing `out/` at
+**https://signal-room-portfolio-static.onrender.com**. The original Node service
+is suspended with autodeploy disabled and retained for rollback. Follow that
+record for the active service and current deployment/verification settings.

@@ -56,7 +56,9 @@ and a 0.5 CPU limit. Docker health checks and `unless-stopped` restart policy
 manage the process.
 
 - `api.env` is root-owned, mode 0600. It contains the LiveKit API settings above
-  and `ALLOWED_ORIGIN=https://signal-room-portfolio.onrender.com`. Transfer it
+  and `ALLOWED_ORIGIN`, a comma-separated list of allowed frontend origins.
+  Allow both the new static-site origin and the retained old web-service origin
+  during rollout/rollback. Transfer it
   through authenticated SSH, never in image layers or command arguments. Do not
   copy ElevenLabs, model-provider, or AWS account credentials to this service.
 - `compose.yaml` is installed from `deploy/compose.yaml`. Its `.env` contains
@@ -106,7 +108,7 @@ reload.
 From the repository root, with the actual LiveKit settings in `.env`:
 
 ```bash
-API_BASE_URL=https://signal-room-api.16-178-253-21.sslip.io node --env-file=.env backend/test/smoke.mjs
+API_BASE_URL=https://signal-room-api.16-178-253-21.sslip.io FRONTEND_ORIGIN=https://your-static-site.onrender.com node --env-file=.env backend/test/smoke.mjs
 ```
 
 This checks trusted TLS, status, cache headers, preflight/CORS, a real JWT

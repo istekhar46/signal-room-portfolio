@@ -12,6 +12,7 @@ export function createApp(config) {
   const app = express();
   const agentName = config.agentName || "signal-room-representative";
   const configured = Boolean(config.livekitUrl && config.apiKey && config.apiSecret);
+  const allowedOrigins = config.allowedOrigin.split(",").map((origin) => origin.trim());
   app.disable("x-powered-by");
   // Caddy is the single public ingress hop; the API container has no published port.
   app.set("trust proxy", 1);
@@ -22,13 +23,13 @@ export function createApp(config) {
   });
   app.use((req, res, next) => {
     const origin = req.get("origin");
-    if (origin && origin !== config.allowedOrigin) {
+    if (origin && !allowedOrigins.includes(origin)) {
       return res.status(403).json({ error: "This browser origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
     }
     next();
   });
   app.use(cors({
-    origin: config.allowedOrigin,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
     maxAge: 600,

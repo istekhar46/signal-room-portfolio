@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { TokenVerifier } from "livekit-server-sdk";
 
 const base = process.env.API_BASE_URL;
-if (!base || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
-  throw new Error("Set API_BASE_URL and the LiveKit verification credentials before running this check.");
+const origin = process.env.FRONTEND_ORIGIN;
+if (!base || !origin || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
+  throw new Error("Set API_BASE_URL, FRONTEND_ORIGIN, and the LiveKit verification credentials before running this check.");
 }
 try {
   const statusResponse = await fetch(`${base}/api/livekit/status`);
@@ -11,7 +12,6 @@ try {
   assert.equal(statusResponse.headers.get("cache-control"), "no-store");
   const status = await statusResponse.json();
   assert.equal(status.configured, true);
-  const origin = "https://signal-room-portfolio.onrender.com";
   const preflight = await fetch(`${base}/api/livekit/token`, {
     method: "OPTIONS",
     headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" },

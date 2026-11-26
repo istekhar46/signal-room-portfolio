@@ -137,6 +137,19 @@ test("token requests are rate limited per client", async () => {
   });
 });
 
+test("explicit frontend origin allowlist supports a verified replacement site", async () => {
+  const replacement = "https://portfolio-static.example";
+  await withApi(async (base) => {
+    for (const origin of [config.allowedOrigin, replacement]) {
+      const response = await fetch(`${base}/api/livekit/status`, { headers: { Origin: origin } });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    }
+    const response = await fetch(`${base}/api/livekit/status`, { headers: { Origin: "https://unrelated.example" } });
+    assert.equal(response.status, 403);
+  }, { allowedOrigin: `${config.allowedOrigin}, ${replacement}` });
+});
+
 test("missing configuration is explicit and unknown endpoints return 404", async () => {
   await withApi(async (base) => {
     const status = await fetch(`${base}/api/livekit/status`).then((response) => response.json());

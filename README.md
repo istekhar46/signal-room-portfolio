@@ -24,7 +24,7 @@ cp .env.example .env.local
 Required variables:
 
 - `NEXT_PUBLIC_API_BASE_URL` — `http://localhost:3001` for the local API; the Lightsail HTTPS URL on Render
-- `ALLOWED_ORIGIN` — `http://localhost:3000` for the local API
+- `ALLOWED_ORIGIN` — `http://localhost:3000` for the local API; comma-separated frontend origins in production
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
@@ -49,6 +49,27 @@ npm run dev:api
 ```
 
 Run API regression tests with `npm run test:api`. Deployment and configuration are documented in [`backend/README.md`](./backend/README.md).
+
+### Static frontend deployment
+
+`npm run build` exports the frontend to `out/`, including the social preview
+images. Deploy that directory to a Render **Static Site**; no Node start command
+is needed. Configure these build variables:
+
+- `NODE_VERSION=24`
+- `SKIP_INSTALL_DEPS=true`
+- `NEXT_PUBLIC_API_BASE_URL=https://signal-room-api.16-178-253-21.sslip.io`
+
+Build command:
+
+```bash
+npm ci --include=dev && NEXT_PUBLIC_SITE_URL="$RENDER_EXTERNAL_URL" npm run build
+```
+
+The API must allow the static site's actual origin through its private
+`ALLOWED_ORIGIN` setting. LiveKit credentials belong on the API and agent only.
+See [the static-site deployment record](docs/implementation/render-static-frontend.md)
+for the active service and verification results.
 
 ### 4. LiveKit Voice Agent Worker
 

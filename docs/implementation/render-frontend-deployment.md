@@ -60,3 +60,12 @@
 - All application changes predate this deployment task and have been published as requested. This final documentation-only update does not require a new frontend build because `docs/**` is ignored.
 - No remaining deployment work. Future frontend commits on `feat/interactive-acoustic-upgrades` auto-deploy. Agent-only/docs-only commits do not.
 - No LiveKit or agent secrets were transferred. No agent worker was deployed. The local production server used for preflight checks has been stopped.
+
+### Later LiveKit follow-up
+
+The user subsequently authorized deploying the agent to LiveKit Cloud and explicitly
+approved connecting this Render service to it. That supersedes the initial
+frontend-only exclusion above. See [LiveKit Cloud agent deployment](livekit-cloud-agent-deployment.md)
+for current agent, connection, validation, and rollout status. The frontend is now
+configured with server-only LiveKit credentials; the original offline verification
+above remains a record of the initial deployment.

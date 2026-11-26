@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, MessageSquare, Mic, Radio, RotateCcw } from "lucide-react";
+import { ArrowRight, MessageSquare, Mic, Plus, Radio, RotateCcw } from "lucide-react";
 import { LatencyPlayground } from "@/components/latency-playground";
+import { VoiceSystemsLab } from "@/components/voice-systems-lab";
 import { SignalSpectrogram, type SimulationSnapshot } from "@/components/signal-spectrogram";
 import { PORTFOLIO, type VoiceTopicId } from "@/data/portfolio";
 import { signalSound } from "@/lib/signal-sound";
@@ -20,6 +21,7 @@ interface VoiceLabProps {
   highlighted: boolean;
   onStartVoice: () => void;
   onAskAbout: (prompt: string) => void;
+  onInspectArchitecture: () => void;
 }
 
 const PIPELINE_NODES: {
@@ -48,7 +50,9 @@ export function VoiceLab({
   highlighted,
   onStartVoice,
   onAskAbout,
+  onInspectArchitecture,
 }: VoiceLabProps) {
+  const [audioWorkbenchOpen, setAudioWorkbenchOpen] = useState(false);
   const [workbenchMode, setWorkbenchMode] = useState<"spectrogram" | "latency">("spectrogram");
   const [sim, setSim] = useState<SimulationSnapshot>({
     active: false,
@@ -104,17 +108,17 @@ export function VoiceLab({
     <section
       id="voice-lab"
       aria-labelledby="voice-lab-heading"
-      className="py-24 md:py-32 border-t border-[#2B303B]"
+      className="py-16 md:py-20 border-t border-[#2B303B]"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
           <h2
             id="voice-lab-heading"
-            className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium tracking-[-0.02em] text-[#EFF0F1] max-w-2xl leading-[1.12]"
+            className="font-serif text-3xl sm:text-4xl md:text-[2.75rem] font-medium tracking-[-0.02em] text-[#EFF0F1] max-w-3xl leading-[1.2]"
           >
-            How a voice agent hears, thinks, and speaks.
+            A conversation, under pressure.
           </h2>
-          <div className="flex items-center gap-2 font-mono text-xs text-[#9499A3] telemetry-nums">
+          <div className={cn("items-center gap-2 font-mono text-xs text-[#9499A3] telemetry-nums", connected || sim.active ? "flex" : "hidden")}>
             <Radio
               className={cn(
                 "w-3.5 h-3.5",
@@ -130,12 +134,39 @@ export function VoiceLab({
                 ? `LIVE SESSION SYNC · STATE ${agentState.toUpperCase()}`
                 : sim.active
                   ? `SIMULATED CALL · ${sim.phase.toUpperCase()}`
-                  : "INTERACTIVE PIPELINE · SELECT ANY STAGE"}
+                  : "VOICE AI + DISTRIBUTED SYSTEMS"}
             </span>
           </div>
         </div>
 
-        {/* Calibrated signal schematic frame */}
+        <p className="mb-8 max-w-2xl text-base leading-relaxed text-[#C4C8D0]">
+          Interrupt a turn. Change its prompt. Deliver an event twice.
+          Explore the decisions that keep a voice system coherent when things change.
+        </p>
+        <VoiceSystemsLab />
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-[#9499A3]">The model is local. The engineering decisions come from building OpenCalls.</p>
+          <button type="button" onClick={onInspectArchitecture} className="inline-flex min-h-11 items-center gap-2 text-[#EFF0F1] hover:text-[#38D9A9]">Inspect the architecture<ArrowRight className="h-4 w-4" /></button>
+        </div>
+
+        <details
+          id="audio-workbench"
+          className="group mt-8 border-y border-[#3B4252]"
+          onToggle={(event) => {
+            const open = event.currentTarget.open;
+            setAudioWorkbenchOpen(open);
+            if (!open) setSim((previous) => ({ ...previous, active: false, phase: "idle", stageState: "idle", metrics: null }));
+          }}
+        >
+          <summary className="flex min-h-16 cursor-pointer list-none flex-wrap items-center justify-between gap-2 py-5 text-sm text-[#EFF0F1] hover:text-[#38D9A9]">
+            <span>Open the audio workbench</span>
+            <span className="flex items-center gap-3 text-xs text-[#9499A3]">
+              STFT spectrum, barge-in &amp; latency experiments
+              <Plus aria-hidden="true" className="h-4 w-4 shrink-0 text-[#38D9A9] group-open:rotate-45" />
+            </span>
+          </summary>
+          {audioWorkbenchOpen ? (
+
         <div
           className={cn(
             "bg-[#1A1D23] border border-[#2B303B] p-5 md:p-8 signal-grid transition-colors relative overflow-hidden",
@@ -516,6 +547,8 @@ export function VoiceLab({
             </div>
           </div>
         </div>
+          ) : null}
+        </details>
       </div>
     </section>
   );

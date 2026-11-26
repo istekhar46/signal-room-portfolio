@@ -15,7 +15,6 @@ import {
   Keyboard,
   Menu,
   Mic,
-  Terminal,
   Volume2,
   VolumeX,
   X,
@@ -59,8 +58,8 @@ gsap.registerPlugin(useGSAP);
 type NavId = "about" | "voice-lab" | "projects" | "writing" | "experience" | "stack" | "contact";
 
 const NAV_LINKS: { id: NavId; label: string }[] = [
-  { id: "about", label: "About" },
   { id: "voice-lab", label: "Voice Lab" },
+  { id: "about", label: "About" },
   { id: "projects", label: "Projects" },
   { id: "writing", label: "Writing" },
   { id: "experience", label: "Experience" },
@@ -322,9 +321,9 @@ export function PortfolioShell() {
   >(
     () => [
       {
-        title: "VOICE LAB · STFT & BARGE-IN",
+        title: "VOICE LAB · A CALL UNDER PRESSURE",
         narration:
-          "Live 60fps STFT waterfall spectrogram and real-time voice pipeline. Watch Silero VAD, streaming STT, LLM TTFT, and ElevenLabs TTS execute concurrently.",
+          "Run a browser model of a voice turn. Publish a prompt mid-call, interrupt the output, or redeliver an event to explore the system's guarantees.",
         durationMs: 5200,
         execute: () => {
           setActivePanel(null);
@@ -335,10 +334,8 @@ export function PortfolioShell() {
           const el = document.getElementById("voice-lab");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
           scheduleAutopilotSub(() => {
-            const simBtn = Array.from(document.querySelectorAll("#voice-lab button")).find((b) =>
-              b.textContent?.includes("Simulate Call Turn")
-            ) as HTMLButtonElement | undefined;
-            aimGhostCursor(simBtn ?? el, "TRIGGER STFT CALL TURN", 2200);
+            const simBtn = document.querySelector<HTMLButtonElement>("#voice-lab [data-start-call]");
+            aimGhostCursor(simBtn ?? el, "START A MODELLED VOICE TURN", 2200);
             scheduleAutopilotSub(() => simBtn?.click(), 380);
           }, 460);
         },
@@ -646,8 +643,8 @@ export function PortfolioShell() {
     (id: NavId, openPopup = true) => {
       setActiveNav(id);
       setMobileMenuOpen(false);
-      flashSignalBeam();
       if (openPopup && id !== "stack") {
+        flashSignalBeam();
         signalSound.playHudOpen();
       } else {
         signalSound.playTick(620);
@@ -656,7 +653,7 @@ export function PortfolioShell() {
       el?.scrollIntoView({ behavior: "smooth", block: "start" });
 
       if (!openPopup) {
-        showHudNotice(`HUD // SECTION · ${id.toUpperCase()}`);
+        setActivePanel(null);
         return;
       }
 
@@ -998,7 +995,7 @@ export function PortfolioShell() {
         ? "SESSION LIVE"
         : livekit.serverConfigured
           ? "AGENT ONLINE"
-          : "AGENT OFFLINE";
+          : "BROWSE MODE";
 
   const statusLive = livekit.connected || livekit.serverConfigured === true;
 
@@ -1067,12 +1064,13 @@ export function PortfolioShell() {
             className="hidden lg:flex items-center gap-1 text-sm"
           >
             {NAV_LINKS.map((link) => {
-              const active = activeNav === link.id;
+              const active = activeSectionId !== "hero" && activeNav === link.id;
               return (
-                <button
+                <a
                   key={link.id}
-                  type="button"
-                  onClick={() => handleNavClick(link.id)}
+                  href={`#${link.id}`}
+                  aria-current={active ? "location" : undefined}
+                  onClick={() => handleNavClick(link.id, false)}
                   className={cn(
                     "relative px-3 py-1.5 transition-colors cursor-pointer",
                     active ? "text-[#EFF0F1]" : "text-[#C4C8D0] hover:text-[#EFF0F1]"
@@ -1086,43 +1084,12 @@ export function PortfolioShell() {
                     />
                   )}
                   <span className="relative z-10">{link.label}</span>
-                </button>
+                </a>
               );
             })}
           </nav>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={toggleSfx}
-              aria-pressed={sfxEnabled}
-              aria-label={sfxEnabled ? "Mute HUD sound effects" : "Enable HUD sound effects"}
-              title="Toggle procedural Web Audio HUD sound effects"
-              className={cn(
-                "hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 border font-mono text-xs cursor-pointer",
-                sfxEnabled
-                  ? "bg-[#38D9A9]/12 border-[#38D9A9]/60 text-[#38D9A9]"
-                  : "bg-[#1A1D23] border-[#2B303B] text-[#9499A3] hover:text-[#EFF0F1] hover:border-[#FF9F38]"
-              )}
-            >
-              {sfxEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              <span>SFX</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                signalSound.playHudOpen();
-                setTerminalOpen(true);
-              }}
-              aria-label="Open Signal Shell diagnostic console"
-              className="hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#C4C8D0] hover:text-[#38D9A9] hover:border-[#38D9A9] cursor-pointer"
-              title="Open Signal Shell diagnostic console (Press `)"
-            >
-              <Terminal className="w-3.5 h-3.5 text-[#38D9A9]" />
-              <span>CLI</span>
-            </button>
-
             <button
               type="button"
               onClick={() => {
@@ -1139,7 +1106,8 @@ export function PortfolioShell() {
 
             <button
               type="button"
-              onClick={() => setDockVisible((v) => !v)}
+              onClick={() => livekit.serverConfigured ? setDockVisible((v) => !v) : handleNavClick("voice-lab", false)}
+              title={livekit.serverConfigured ? "Open voice controls" : "Live voice unavailable. Explore the interactive call lab."}
               className="hud-btn inline-flex items-center gap-2 min-h-10 px-3 py-2 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#EFF0F1] hover:border-[#FF9F38] cursor-pointer"
             >
               <span
@@ -1186,10 +1154,10 @@ export function PortfolioShell() {
                 className="lg:hidden absolute top-full left-0 right-0 z-40 border-b border-[#3B4252] bg-[#14171D]/98 backdrop-blur-md px-6 py-4 flex flex-col gap-2 text-sm shadow-[0_24px_48px_rgba(0,0,0,0.75)]"
               >
                 {NAV_LINKS.map((link) => (
-                  <button
+                  <a
                     key={link.id}
-                    type="button"
-                    onClick={() => handleNavClick(link.id)}
+                    href={`#${link.id}`}
+                    onClick={() => handleNavClick(link.id, false)}
                     className={cn(
                       "text-left py-1.5 cursor-pointer transition-colors",
                       activeNav === link.id
@@ -1198,7 +1166,7 @@ export function PortfolioShell() {
                     )}
                   >
                     {link.label}
-                  </button>
+                  </a>
                 ))}
                 <div className="pt-2.5 mt-1 border-t border-[#2B303B] flex flex-wrap items-center justify-between gap-2.5">
                   <div className="flex items-center gap-3">
@@ -1251,14 +1219,14 @@ export function PortfolioShell() {
         <section
           id="hero"
           aria-labelledby="hero-heading"
-          className="relative max-w-7xl mx-auto px-6 md:px-10 pt-5 pb-16 sm:pt-10 md:pt-16 md:pb-24"
+          className="relative max-w-7xl mx-auto px-6 md:px-10 pt-8 pb-14 sm:pt-12 md:pt-16 md:pb-20"
         >
-          <div className="grid lg:grid-cols-[1.12fr_0.98fr] gap-5 sm:gap-8 lg:gap-10 items-center">
+          <div className="grid lg:grid-cols-[1.2fr_1fr] gap-8 lg:gap-12 items-center">
             {/* Left column: monumental editorial headline with word masks */}
-            <div className="min-w-0 space-y-3.5 sm:space-y-5 lg:space-y-7 lg:pr-8 lg:border-r lg:border-[#2B303B]">
+            <div className="min-w-0 space-y-5 lg:space-y-7">
               <h1
                 id="hero-heading"
-                className="text-[clamp(2.25rem,6.3vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.03em] text-[#EFF0F1]"
+                className="text-[clamp(2.25rem,5vw,4.75rem)] font-extrabold leading-[0.98] tracking-[-0.03em] text-[#EFF0F1]"
               >
                 <span className="block overflow-hidden">
                   <span className="hero-line block">Engineering</span>
@@ -1271,26 +1239,23 @@ export function PortfolioShell() {
                 </span>
               </h1>
 
-              <p className="hero-reveal text-sm sm:text-base md:text-lg text-[#C4C8D0] leading-relaxed max-w-[50ch]">
-                {PORTFOLIO.person.heroSubcopy}
-              </p>
+              <div className="hero-reveal space-y-2">
+                <p className="text-base font-medium text-[#EFF0F1] sm:text-lg">I’m {PORTFOLIO.person.name}. Founder at OpenCalls.</p>
+                <p className="text-sm sm:text-base text-[#C4C8D0] leading-relaxed max-w-[48ch]">{PORTFOLIO.person.heroSubcopy}</p>
+              </div>
 
               <div className="hero-reveal flex flex-wrap items-center gap-x-5 gap-y-2 pt-1 text-sm">
+                <a href="#voice-lab" className="hud-btn inline-flex min-h-12 items-center gap-3 bg-[#FF5A1F] px-5 py-3 font-semibold text-[#121418] hover:bg-[#ff6d38]">
+                  Enter the call lab<ArrowDown className="h-4 w-4" />
+                </a>
                 <button
                   type="button"
                   onClick={() => startAutopilotTour(0)}
                   className="inline-flex items-center gap-2 py-2 text-[#FF9F38] hover:text-[#EFF0F1] transition-colors cursor-pointer font-medium"
                 >
                   <Compass className="w-4 h-4 text-[#FF5A1F]" />
-                  <span>Autopilot tour</span>
+                  <span>Take the guided tour</span>
                 </button>
-                <a
-                  href="#about"
-                  className="inline-flex items-center gap-1.5 py-2 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
-                >
-                  <ArrowDown className="w-4 h-4 text-[#38D9A9]" />
-                  <span>Explore</span>
-                </a>
                 <a
                   href={PORTFOLIO.person.resumeUrl}
                   target="_blank"
@@ -1300,9 +1265,6 @@ export function PortfolioShell() {
                   <FileText className="w-4 h-4 text-[#FF9F38]" />
                   <span>Resume</span>
                 </a>
-                <span className="hidden sm:inline text-[#9499A3]">
-                  {PORTFOLIO.person.name} · {PORTFOLIO.person.currentHeadline}
-                </span>
               </div>
             </div>
 
@@ -1314,7 +1276,8 @@ export function PortfolioShell() {
                 agentLevelRef={livekit.agentLevelRef}
                 micBinsRef={livekit.micBinsRef}
                 agentBinsRef={livekit.agentBinsRef}
-                onActivate={handleStartVoice}
+                onActivate={livekit.serverConfigured ? handleStartVoice : () => handleNavClick("voice-lab", false)}
+                activationLabel={livekit.serverConfigured ? "Start a live voice session" : "Explore the interactive call lab"}
               />
 
               <div className="mt-2 sm:mt-3 font-mono text-xs tracking-wider text-[#9499A3] telemetry-nums">
@@ -1331,11 +1294,13 @@ export function PortfolioShell() {
                   )}
                 >
                   {livekit.agentState === "offline"
-                    ? "STANDBY · BROWSE OR CONNECT LIVEKIT"
+                    ? "STANDBY · EXPLORE THE CALL LAB"
                     : `${livekit.agentState.toUpperCase()} · READY`}
                 </span>
               </div>
 
+              {livekit.serverConfigured ? (
+                <>
               {/* Multi-Persona LiveKit Agent Mode Selector */}
               <div
                 role="radiogroup"
@@ -1410,20 +1375,40 @@ export function PortfolioShell() {
                   </button>
                 ))}
               </div>
+                </>
+              ) : (
+                <p className="mt-4 max-w-[36ch] text-center text-sm leading-relaxed text-[#9499A3]">
+                  Live voice is currently unavailable. Explore the call lab without a microphone.
+                </p>
+              )}
             </div>
           </div>
         </section>
+
+        <VoiceLab
+          selectedTopic={selectedTopic}
+          onSelectTopic={(topic) => setSelectedTopic(topic)}
+          agentState={livekit.agentState}
+          connected={livekit.connected}
+          latestMetrics={livekit.latestMetrics}
+          micBinsRef={livekit.micBinsRef}
+          agentBinsRef={livekit.agentBinsRef}
+          highlighted={highlightedTarget === "voice-pipeline"}
+          onStartVoice={handleStartVoice}
+          onAskAbout={handleAskAbout}
+          onInspectArchitecture={() => handleOpenProject("opencalls", "architecture")}
+        />
 
         {/* A. ABOUT */}
         <section
           id="about"
           aria-labelledby="about-heading"
-          className="py-24 md:py-32 border-t border-[#2B303B]"
+          className="py-16 md:py-20 border-t border-[#2B303B]"
         >
-          <div className="max-w-7xl mx-auto px-6 md:px-10 space-y-12">
+          <div className="max-w-7xl mx-auto px-6 md:px-10 space-y-8">
             <h2
               id="about-heading"
-              className="font-serif text-3xl sm:text-4xl md:text-[2.75rem] font-normal leading-[1.2] tracking-[-0.02em] text-[#EFF0F1] max-w-4xl"
+              className="font-serif text-2xl sm:text-3xl md:text-4xl font-normal leading-[1.3] tracking-[-0.02em] text-[#EFF0F1] max-w-4xl"
             >
               {PORTFOLIO.about.statement}
             </h2>
@@ -1454,20 +1439,6 @@ export function PortfolioShell() {
             </div>
           </div>
         </section>
-
-        {/* B. VOICE ENGINEERING LAB */}
-        <VoiceLab
-          selectedTopic={selectedTopic}
-          onSelectTopic={(topic) => setSelectedTopic(topic)}
-          agentState={livekit.agentState}
-          connected={livekit.connected}
-          latestMetrics={livekit.latestMetrics}
-          micBinsRef={livekit.micBinsRef}
-          agentBinsRef={livekit.agentBinsRef}
-          highlighted={highlightedTarget === "voice-pipeline"}
-          onStartVoice={handleStartVoice}
-          onAskAbout={handleAskAbout}
-        />
 
         {/* C. PROJECTS & FLAGSHIP OPENCALLS */}
         <ProjectsSection

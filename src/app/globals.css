@@ -35,6 +35,7 @@
 }
 
 html {
+  scroll-padding-top: 5.5rem;
   scroll-behavior: smooth;
   background-color: var(--bg-ground);
   color: var(--ink-primary);
@@ -71,6 +72,26 @@ html {
 
 a {
   text-underline-offset: 4px;
+}
+
+.call-lab-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  color: #38D9A9;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.call-lab-link:hover:not(:disabled) {
+  color: #EFF0F1;
+}
+
+summary::-webkit-details-marker {
+  display: none;
 }
 
 .telemetry-nums {

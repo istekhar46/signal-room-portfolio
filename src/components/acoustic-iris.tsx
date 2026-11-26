@@ -589,6 +589,7 @@ interface AcousticIrisProps {
   micBinsRef?: React.RefObject<Uint8Array>;
   agentBinsRef?: React.RefObject<Uint8Array>;
   onActivate?: () => void;
+  activationLabel?: string;
 }
 
 export function AcousticIris({
@@ -598,6 +599,7 @@ export function AcousticIris({
   micBinsRef,
   agentBinsRef,
   onActivate,
+  activationLabel = "Start a live voice session",
 }: AcousticIrisProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointerTargetRef = useRef({ x: 0, y: 0 });
@@ -662,8 +664,8 @@ export function AcousticIris({
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       className="relative w-full max-w-[228px] sm:max-w-[310px] lg:max-w-[390px] aspect-square mx-auto select-none"
-      role="img"
-      aria-label={`J.A.R.V.I.S.-inspired holographic voice core, current state: ${state}`}
+      role="group"
+      aria-label={`Interactive acoustic voice core, current state: ${state}`}
     >
       {/* Calibrated axis crosshairs */}
       <div
@@ -727,11 +729,7 @@ export function AcousticIris({
       )}
 
       {webglOk ? (
-        <div
-          onClick={onActivate}
-          className="relative z-10 w-full h-full cursor-pointer"
-          title="Click to activate voice session"
-        >
+        <div className="relative z-10 w-full h-full">
           <Canvas
             frameloop={inView ? "always" : "never"}
             dpr={[1, 2]}
@@ -753,14 +751,17 @@ export function AcousticIris({
               reducedMotion={reducedMotion}
             />
           </Canvas>
+          <button type="button" onClick={onActivate} aria-label={activationLabel} title={activationLabel} className="absolute inset-0 cursor-pointer rounded-full" />
         </div>
       ) : (
-        <div
+        <button
+          type="button"
           onClick={onActivate}
           className="relative z-10 w-full h-full grid place-items-center cursor-pointer"
+          aria-label={activationLabel}
         >
           <MiniAcousticIris state={state} size={240} />
-        </div>
+        </button>
       )}
     </div>
   );

@@ -80,8 +80,8 @@ export function KineticCaptions({ visible, line }: KineticCaptionsProps) {
 
 const RAIL_SECTIONS: { id: string; short: string }[] = [
   { id: "hero", short: "00" },
-  { id: "about", short: "AB" },
   { id: "voice-lab", short: "VL" },
+  { id: "about", short: "AB" },
   { id: "projects", short: "PR" },
   { id: "writing", short: "WR" },
   { id: "experience", short: "EX" },

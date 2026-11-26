@@ -50,6 +50,41 @@ function mapLiveKitState(raw?: string): AgentVisualState {
   }
 }
 
+function waitForAgentReady(room: Room): Promise<void> {
+  const isReady = () =>
+    Array.from(room.remoteParticipants.values()).some((participant) =>
+      ["listening", "thinking", "speaking"].includes(participant.attributes["lk.agent.state"])
+    );
+  if (isReady()) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      room.off(RoomEvent.ParticipantConnected, checkReady);
+      room.off(RoomEvent.ParticipantAttributesChanged, checkReady);
+      room.off(RoomEvent.Disconnected, onDisconnect);
+    };
+    const checkReady = () => {
+      if (isReady()) {
+        cleanup();
+        resolve();
+      }
+    };
+    const onDisconnect = () => {
+      cleanup();
+      reject(new Error("The session ended before your message could be sent. Connect again to retry."));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("The agent is taking too long to join. Your message was not sent. Please try again."));
+    }, 30_000);
+    room.on(RoomEvent.ParticipantConnected, checkReady);
+    room.on(RoomEvent.ParticipantAttributesChanged, checkReady);
+    room.on(RoomEvent.Disconnected, onDisconnect);
+    checkReady();
+  });
+}
+
 export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   const [serverConfigured, setServerConfigured] = useState<boolean | null>(null);
   const [connected, setConnected] = useState(false);
@@ -466,25 +501,28 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
         if (!ok || !roomRef.current) return false;
       }
 
-      setTranscript((prev) => [
-        ...prev.slice(-39),
-        {
-          id: `local-${crypto.randomUUID()}`,
-          speaker: "visitor",
-          text: trimmed,
-          final: true,
-          timestamp: Date.now(),
-        },
-      ]);
-
+      const room = roomRef.current;
       try {
-        await roomRef.current.localParticipant.sendText(trimmed, {
+        setConnectionError(null);
+        // Room connection can finish before the dispatched worker accepts text.
+        await waitForAgentReady(room);
+        setTranscript((prev) => [
+          ...prev.slice(-39),
+          {
+            id: `local-${crypto.randomUUID()}`,
+            speaker: "visitor",
+            text: trimmed,
+            final: true,
+            timestamp: Date.now(),
+          },
+        ]);
+        await room.localParticipant.sendText(trimmed, {
           topic: "lk.chat",
         });
         setAgentState("thinking");
         return true;
-      } catch {
-        setConnectionError("Message could not be sent to the LiveKit room.");
+      } catch (error) {
+        setConnectionError(error instanceof Error ? error.message : "Message could not be sent to the LiveKit room.");
         return false;
       }
     },

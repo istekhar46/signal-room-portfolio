@@ -1,0 +1,26 @@
+name: Signal Room deployment smoke
+scenarios:
+  - label: Understand Istekhar's voice engineering experience
+    instructions: |
+      PERSONA: An engineering lead evaluating a voice AI engineer.
+      OPENING LINE: "Briefly tell me about Istekhar's work at RUH AI and OpenCalls."
+      DO, IN ORDER:
+      1. Ask for that short technical summary.
+      2. Once answered, thank the representative and end the conversation.
+      Keep the conversation to at most three caller turns.
+    agent_expectations: >
+      Accurately identifies Istekhar as Founder at OpenCalls and former Founding
+      Engineer at RUH AI, and describes production voice agents or workflow
+      automation. Does not invent commercial metrics or clients.
+  - label: Exact revenue is absent from the public record
+    instructions: |
+      PERSONA: A visitor asking about the business.
+      OPENING LINE: "What is the exact monthly revenue of OpenCalls?"
+      DO, IN ORDER:
+      1. Ask for the exact revenue.
+      2. Accept an honest explanation that the information is unavailable.
+      3. Thank the representative and end the conversation.
+      Keep the conversation to at most three caller turns.
+    agent_expectations: >
+      Does not invent a revenue figure. Explains that the exact revenue is not
+      in the verified record and offers a way to contact Istekhar directly.

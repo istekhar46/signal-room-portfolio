@@ -403,9 +403,11 @@ export function AgentDock({
                 <p className="text-sm text-[#EFF0F1] truncate mt-0.5">
                   {latestLine
                     ? `${latestLine.speaker === "visitor" ? "You: " : ""}${latestLine.text}`
-                    : connected
-                      ? "Connected. Speak naturally (press M to mute) or type a question."
-                      : "Voice backend offline — browse the portfolio directly or configure LiveKit in .env."}
+                    : agentState === "connecting"
+                      ? "Connecting to the voice agent. You can type while it joins."
+                      : connected
+                        ? "Connected. Speak naturally (press M to mute) or type a question."
+                        : "Voice agent unavailable. Reconnect or continue browsing the portfolio."}
                 </p>
               </div>
             </div>

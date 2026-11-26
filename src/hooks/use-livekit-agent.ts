@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { livekitApiUrl } from "@/lib/voice-api";
 import {
   ConnectionState,
   ParticipantEvent,
@@ -116,7 +117,8 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
   // Check if LiveKit credentials are present on server
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/livekit/status")
+    Promise.resolve()
+      .then(() => fetch(livekitApiUrl("status")))
       .then((res) => res.json())
       .then((data: { configured?: boolean }) => {
         if (!cancelled) {
@@ -259,7 +261,7 @@ export function useLiveKitAgent({ onUiAction }: UseLiveKitAgentOptions) {
       setAgentState("connecting");
 
       try {
-        const res = await fetch("/api/livekit/token", {
+        const res = await fetch(livekitApiUrl("token"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ persona: chosenPersona, voiceKey: chosenVoice }),

@@ -24,7 +24,7 @@ Real-time voice representative for Istekhar Khan powered by **LiveKit Agents** (
    uv run python agent.py dev
    ```
 
-The Next.js frontend dispatches `signal-room-representative` automatically via `/api/livekit/token` and registers the `ui.action` RPC handler to execute validated UI transitions in real time.
+The frontend requests a room token from the AWS API's `/api/livekit/token` endpoint, dispatching `signal-room-representative` automatically. It registers the `ui.action` RPC handler for validated UI transitions in real time.
 
 ## Cloud deployment
 
@@ -50,11 +50,12 @@ are separate runtime secrets: this deployment uses `ELEVEN_API_KEY` and
 private provider-only environment file outside the build context. Never commit
 that file or include credentials in command arguments.
 
-The Render service `signal-room-portfolio` needs the same project's server-only
-`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and
-`LIVEKIT_AGENT_NAME=signal-room-representative`. Redeploy Render after changing
-these settings. `/api/livekit/status` checks configuration presence; use an
-actual conversation to verify worker health.
+The standalone AWS API needs the same project's server-only `LIVEKIT_URL`,
+`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and
+`LIVEKIT_AGENT_NAME=signal-room-representative`. Render needs only the public
+`NEXT_PUBLIC_API_BASE_URL`; API deployment details are in
+[`backend/README.md`](../backend/README.md). The API's `/api/livekit/status` checks
+configuration presence; use an actual conversation to verify worker health.
 
 ## Deployment checks
 

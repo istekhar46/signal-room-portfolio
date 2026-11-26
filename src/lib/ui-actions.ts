@@ -1,4 +1,5 @@
 import { z } from "zod";
+import voiceOptions from "../../backend/voices.json";
 
 export const SectionIdSchema = z.enum([
   "hero",
@@ -179,26 +180,7 @@ export const AGENT_VOICES: {
   label: string;
   tone: string;
   voiceId: string;
-}[] = [
-  {
-    key: "sarah",
-    label: "Sarah",
-    tone: "Confident · Warm",
-    voiceId: "EXAVITQu4vr4xnSDxMaL",
-  },
-  {
-    key: "alice",
-    label: "Alice",
-    tone: "Crisp · Editorial",
-    voiceId: "Xb7hH8MSUJpSbSDYk0k2",
-  },
-  {
-    key: "bella",
-    label: "Bella",
-    tone: "Bright · Natural",
-    voiceId: "hpp4J3VqNfWAUOO0d1Us",
-  },
-];
+}[] = voiceOptions.map((voice) => ({ ...voice, key: AgentVoiceSchema.parse(voice.key) }));
 
 export const AGENT_PERSONAS: {
   id: AgentPersonaId;

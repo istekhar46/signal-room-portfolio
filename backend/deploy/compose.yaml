@@ -1,0 +1,33 @@
+name: signal-room
+services:
+  signal-room-api:
+    image: ${SIGNAL_API_IMAGE:?Set SIGNAL_API_IMAGE to the release image tag}
+    container_name: signal-room-api
+    restart: unless-stopped
+    env_file: ./api.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3001"
+    networks:
+      - web
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  web:
+    external: true
+    name: invoiceo_web

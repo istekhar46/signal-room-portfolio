@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Terminal, X } from "lucide-react";
 import { PORTFOLIO, type PortfolioProject } from "@/data/portfolio";
 import { signalSound } from "@/lib/signal-sound";
+import { livekitApiUrl } from "@/lib/voice-api";
 import { cn } from "@/lib/utils";
 
 interface TerminalLine {
@@ -250,7 +251,7 @@ export function SignalTerminal({
       if (lower === "ping") {
         const t0 = performance.now();
         try {
-          const res = await fetch("/api/livekit/status", { cache: "no-store" });
+          const res = await fetch(livekitApiUrl("status"), { cache: "no-store" });
           const rtt = Math.round(performance.now() - t0);
           const data = (await res.json()) as { configured?: boolean };
           let sampleRate = "unknown";

@@ -28,9 +28,9 @@
 
 - RFD-1 DONE: Inspect repository, remote, CLI, workspace, and deployment requirements.
 - RFD-2 DONE: Review the frontend snapshot, run production build/type checks, and identify deployment blockers.
-- RFD-3 IN PROGRESS: Push all current source changes as requested in the follow-up, excluding secrets; the frontend commit is already pushed. Depends on RFD-2.
-- RFD-4 IN PROGRESS: Create the Render frontend service via CLI and confirm a successful deploy of the intended revision. Depends on RFD-3.
-- RFD-5 TODO: Verify public HTTP endpoints and desktop/mobile browser behavior; record service URL, revision, and remaining limits. Depends on RFD-4.
+- RFD-3 DONE: Push all current source changes as requested in the follow-up, excluding secrets. Depends on RFD-2.
+- RFD-4 DONE: Create the Render frontend service via CLI and confirm a successful deploy of the intended revision. Depends on RFD-3.
+- RFD-5 DONE: Verify public HTTP endpoints and desktop/mobile browser behavior; record service URL, revision, and remaining limits. Depends on RFD-4.
 
 ## D. Work Evidence
 
@@ -46,10 +46,17 @@
 - Created service `srv-dc46p4vf3r2c73af9060` through `render services create`. CLI response confirms free plan, Singapore, Node runtime, expected branch/build/start/health check, and ignored build paths.
 - Public URL: `https://signal-room-portfolio.onrender.com`; [Render dashboard](https://dashboard.render.com/web/srv-dc46p4vf3r2c73af9060).
 - Initial deploy: `dep-dc46p6ff3r2c73af93mg`, targeting the intended commit; initial status `build_in_progress`.
+- Both modified agent files passed Python AST syntax parsing. All remaining source changes were committed and pushed as `5bee146e3bb5a453753bdfa42f67a6f1015c4de4` on `feat/interactive-acoustic-upgrades`. Git working tree was clean after that push.
+- Explicitly deployed that revision using `render deploys create ... --commit 5bee146e3bb5a453753bdfa42f67a6f1015c4de4 --wait`. Deploy `dep-dc46q9rl550s738c8h1g` finished successfully with `status: live`; the waiting CLI exited zero.
+- Public Playwright checks passed: homepage 200 and expected heading, social PNG 200 with the correct production hostname, status API 200 with `configured: false`, and token API 503 with `LIVEKIT_UNCONFIGURED`.
+- Desktop (1440x1000): latency tab, invoiceo stack filter, and diagnostic shell `ping` passed. Mobile (390x844): menu opens/closes correctly and hero renders; inspected desktop/mobile screenshots under ignored `.playwright-mcp/`.
+- Final public-page reload after the latest deployment passed; browser console contains zero errors and the existing Three.js Clock deprecation warning.
+- Render log retrieval returned a provider-side 503 (`log retrieval is currently unavailable`). Deployment success is independently established by CLI deploy status and public browser/HTTP checks; no claim is made to have reviewed remote build logs.
+- Limits: lint remains unconfigured; checks are deployment smoke tests, not a full UI regression suite. Live voice/agent behavior was deliberately not deployed or tested. The free instance can cold-start after inactivity.
 
 ## E. Recovery State
 
-- Active task: RFD-3, publishing the remaining source changes before deploying the final revision.
-- No application code changed by the deployment work yet. Existing local frontend and agent changes predate this task.
-- Next: syntax-check and push the remaining agent source/doc changes, explicitly deploy that Git revision through the Render CLI, then verify the public site on desktop and mobile. Commit/push the final documentation update; ignored docs paths prevent a redundant frontend redeploy.
-- No LiveKit or agent secrets have been transferred. The local production server used for preflight checks has been stopped.
+- Deployment complete. Source revision `5bee146e3bb5a453753bdfa42f67a6f1015c4de4` is live at `https://signal-room-portfolio.onrender.com` on the free Singapore Node web service.
+- All application changes predate this deployment task and have been published as requested. This final documentation-only update does not require a new frontend build because `docs/**` is ignored.
+- No remaining deployment work. Future frontend commits on `feat/interactive-acoustic-upgrades` auto-deploy. Agent-only/docs-only commits do not.
+- No LiveKit or agent secrets were transferred. No agent worker was deployed. The local production server used for preflight checks has been stopped.

@@ -128,8 +128,8 @@ export const PORTFOLIO = {
 
   about: {
     statement:
-      "Voice is the highest-bandwidth human interface — when latency drops and system boundaries stay clean, software stops feeling like forms and starts acting like a collaborator.",
-    bio: "I'm Istekhar Khan, Founder at OpenCalls and former Founding Engineer at RUH AI. I architect and ship production voice AI platforms — separating real-time LiveKit speech execution from durable gRPC microservices, Redis concurrency controls, and OpenTelemetry observability — alongside full-stack engineering in Next.js, NestJS, PostgreSQL, and GraphQL.",
+      "Voice is the highest-bandwidth human interface. When latency drops and system boundaries stay clean, software stops feeling like forms and starts acting like a collaborator.",
+    bio: "I'm Istekhar Khan, Founder at OpenCalls and former Founding Engineer at RUH AI. I architect and ship production voice AI platforms, separating real-time LiveKit speech execution from durable gRPC microservices, Redis concurrency controls, and OpenTelemetry observability, alongside full-stack engineering in Next.js, NestJS, PostgreSQL, and GraphQL.",
     specializations: [
       {
         title: "Real-Time Voice Execution",
@@ -290,7 +290,7 @@ export const PORTFOLIO = {
       tagline:
         "AI voice agents that sound natural, act intelligently, and automate real conversations.",
       category: "Voice AI Platform · Telephony & Web",
-      year: "2026 — Present",
+      year: "2026 – Present",
       status: "active",
       flagship: true,
       locationOrContext: "Founder · Pune District, Maharashtra, India",
@@ -318,7 +318,7 @@ export const PORTFOLIO = {
           label: "Call & Version Service",
           sublabel: "Published Runtime",
           detail:
-            "Separates editing from execution — resolves published agent versions, models, voices, tools, and phone assignments per call.",
+            "Separates editing from execution, resolving published agent versions, models, voices, tools, and phone assignments per call.",
         },
         {
           id: "livekit",
@@ -346,7 +346,7 @@ export const PORTFOLIO = {
         {
           title: "Explicit control plane vs. voice execution plane split",
           detail:
-            "Workers report usage and run live audio turns, but never mutate wallet balances or document chunking directly — every domain owns its state behind protobuf gRPC contracts.",
+            "Workers report usage and run live audio turns, but never mutate wallet balances or document chunking directly. Every domain owns its state behind protobuf gRPC contracts.",
         },
         {
           title: "Published agent versions decoupled from live edits",
@@ -382,7 +382,7 @@ export const PORTFOLIO = {
       tagline:
         "Production telephony & web voice agents paired with end-to-end workflow automation.",
       category: "Voice Agents & Agentic Workflows",
-      year: "2025 — 2026",
+      year: "2025 – 2026",
       status: "shipped",
       locationOrContext: "Founding Engineer · RUH AI (Jan 2025 – Mar 2026)",
       overview:
@@ -637,7 +637,7 @@ export const PORTFOLIO = {
       endMonth: 3,
       location: "Remote / India",
       summary:
-        "AI Agents Developer — Voice (telephony and web interface) & Workflow Automation.",
+        "AI Agents Developer focusing on Voice (telephony and web interface) and Workflow Automation.",
       highlights: [
         "Designed and deployed production-ready voice AI agents for real-time phone calls and web interfaces.",
         "Built agentic workflows with LangChain, AutoGen, LiveKit, and Vocode across customer service, sales, and automation.",

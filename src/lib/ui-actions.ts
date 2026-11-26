@@ -115,6 +115,14 @@ export const UiActionSchema = z.discriminatedUnion("name", [
     args: z.object({}).default({}),
   }),
   z.object({
+    name: z.literal("start_autopilot_tour"),
+    args: z
+      .object({
+        startStep: z.number().int().min(0).max(4).optional(),
+      })
+      .default({}),
+  }),
+  z.object({
     name: z.literal("end_voice_session"),
     args: z
       .object({
@@ -264,6 +272,10 @@ export function formatActionSignature(action: UiAction): string {
       return `highlight_content("${action.args.targetId}")`;
     case "close_active_panel":
       return `close_active_panel()`;
+    case "start_autopilot_tour":
+      return action.args.startStep !== undefined
+        ? `start_autopilot_tour(step=${action.args.startStep})`
+        : `start_autopilot_tour()`;
     case "end_voice_session":
       return action.args.reason
         ? `end_voice_session("${action.args.reason}")`

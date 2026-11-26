@@ -40,7 +40,7 @@ export function ProjectsSection({
             Selected Systems &amp; Ventures
           </h2>
           <p className="text-sm text-[#9499A3] max-w-sm">
-            Select any system to open its Stage Panel — or ask the voice representative to walk
+            Select any system to open its Stage Panel, or ask the voice representative to walk
             through its architecture.
           </p>
         </div>

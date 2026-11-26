@@ -25,8 +25,8 @@ export interface SimulationSnapshot {
 interface SignalSpectrogramProps {
   connected: boolean;
   agentState: AgentVisualState;
-  micBinsRef: React.MutableRefObject<Uint8Array>;
-  agentBinsRef: React.MutableRefObject<Uint8Array>;
+  micBinsRef: React.RefObject<Uint8Array>;
+  agentBinsRef: React.RefObject<Uint8Array>;
   onSimUpdate: (snapshot: SimulationSnapshot) => void;
 }
 
@@ -687,7 +687,7 @@ export function SignalSpectrogram({
             </span>
             <span className="text-[#C4C8D0]">{readout.rmsDb} dBFS</span>
             <span className="text-[#FF9F38]">
-              PEAK {readout.peakHz > 0 ? `${readout.peakHz} Hz` : "—"}
+              PEAK {readout.peakHz > 0 ? `${readout.peakHz} Hz` : "--"}
             </span>
           </div>
         </div>

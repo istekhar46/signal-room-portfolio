@@ -25,6 +25,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: "Istekhar Khan — Voice AI & Full-Stack AI Engineer",
   description:
     "Interactive Signal Room portfolio of Istekhar Khan, Founder at OpenCalls. Speak directly with a LiveKit-powered AI voice representative that orchestrates the interface in real time.",

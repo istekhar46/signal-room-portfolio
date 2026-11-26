@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { ArrowRight, MessageSquare, Mic, Radio, RotateCcw } from "lucide-react";
+import { LatencyPlayground } from "@/components/latency-playground";
 import { SignalSpectrogram, type SimulationSnapshot } from "@/components/signal-spectrogram";
 import { PORTFOLIO, type VoiceTopicId } from "@/data/portfolio";
+import { signalSound } from "@/lib/signal-sound";
 import type { AgentVisualState, TurnLatencyMetrics } from "@/lib/ui-actions";
 import { cn } from "@/lib/utils";
 
@@ -13,8 +15,8 @@ interface VoiceLabProps {
   agentState: AgentVisualState;
   connected: boolean;
   latestMetrics: TurnLatencyMetrics | null;
-  micBinsRef: React.MutableRefObject<Uint8Array>;
-  agentBinsRef: React.MutableRefObject<Uint8Array>;
+  micBinsRef: React.RefObject<Uint8Array>;
+  agentBinsRef: React.RefObject<Uint8Array>;
   highlighted: boolean;
   onStartVoice: () => void;
   onAskAbout: (prompt: string) => void;
@@ -47,6 +49,7 @@ export function VoiceLab({
   onStartVoice,
   onAskAbout,
 }: VoiceLabProps) {
+  const [workbenchMode, setWorkbenchMode] = useState<"spectrogram" | "latency">("spectrogram");
   const [sim, setSim] = useState<SimulationSnapshot>({
     active: false,
     phase: "idle",
@@ -279,14 +282,66 @@ export function VoiceLab({
             </div>
           </div>
 
-          {/* Live 60fps STFT Waterfall Spectrogram & Barge-In Simulator */}
-          <SignalSpectrogram
-            connected={connected}
-            agentState={agentState}
-            micBinsRef={micBinsRef}
-            agentBinsRef={agentBinsRef}
-            onSimUpdate={setSim}
-          />
+          {/* Dual-instrument mode switcher: STFT Waterfall vs Interactive Latency Feel Lab */}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+            <div
+              role="tablist"
+              aria-label="Voice Lab instruments"
+              className="inline-flex flex-wrap items-center gap-1 p-1 bg-[#121418] border border-[#2B303B]"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workbenchMode === "spectrogram"}
+                onClick={() => {
+                  signalSound.playTick(720);
+                  setWorkbenchMode("spectrogram");
+                }}
+                className={cn(
+                  "px-3 py-1.5 font-mono text-[11px] cursor-pointer transition-colors",
+                  workbenchMode === "spectrogram"
+                    ? "bg-[#22262E] border border-[#38D9A9]/70 text-[#EFF0F1]"
+                    : "border border-transparent text-[#9499A3] hover:text-[#EFF0F1]"
+                )}
+              >
+                01 // STFT SPECTROGRAM &amp; BARGE-IN
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workbenchMode === "latency"}
+                onClick={() => {
+                  signalSound.playTick(780);
+                  setWorkbenchMode("latency");
+                }}
+                className={cn(
+                  "px-3 py-1.5 font-mono text-[11px] cursor-pointer transition-colors",
+                  workbenchMode === "latency"
+                    ? "bg-[#22262E] border border-[#FF9F38]/75 text-[#FF9F38]"
+                    : "border border-transparent text-[#9499A3] hover:text-[#EFF0F1]"
+                )}
+              >
+                02 // LATENCY FEEL &amp; OTEL WATERFALL
+              </button>
+            </div>
+            <span className="font-mono text-[11px] text-[#9499A3]">
+              {workbenchMode === "spectrogram"
+                ? "REAL-TIME 60FPS FFT SPECTRUM"
+                : "INTERACTIVE TURN DELAY BENCHMARK"}
+            </span>
+          </div>
+
+          {workbenchMode === "spectrogram" ? (
+            <SignalSpectrogram
+              connected={connected}
+              agentState={agentState}
+              micBinsRef={micBinsRef}
+              agentBinsRef={agentBinsRef}
+              onSimUpdate={setSim}
+            />
+          ) : (
+            <LatencyPlayground />
+          )}
 
           {/* Active stage inspector + real/simulated latency bar */}
           <div className="mt-6 grid lg:grid-cols-[1.25fr_1fr] gap-6 pt-6 border-t border-[#2B303B]">
@@ -436,10 +491,10 @@ export function VoiceLab({
                       to trace streaming stages and barge-in cancellation.
                     </p>
                     <div className="grid grid-cols-4 border border-[#2B303B] font-mono text-xs text-[#9499A3]">
-                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">VAD —</div>
-                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">STT —</div>
-                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">LLM —</div>
-                      <div className="p-2.5 bg-[#1A1D23]/60">TTS —</div>
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">VAD --</div>
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">STT --</div>
+                      <div className="p-2.5 border-r border-[#2B303B] bg-[#1A1D23]/60">LLM --</div>
+                      <div className="p-2.5 bg-[#1A1D23]/60">TTS --</div>
                     </div>
                     {!connected && (
                       <button

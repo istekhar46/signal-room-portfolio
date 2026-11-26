@@ -49,7 +49,7 @@ const NODES: TopologyNode[] = [
     label: "Call & Version Service",
     protocol: "gRPC · Snapshots",
     ownership:
-      "Decouples editing from runtime — resolves immutable published agent versions, models, voices, tools, and phone routing per call.",
+      "Decouples editing from runtime, resolving immutable published agent versions, models, voices, tools, and phone routing per call.",
   },
   {
     id: "kb-service",
@@ -65,7 +65,7 @@ const NODES: TopologyNode[] = [
     label: "Payment Ledger",
     protocol: "gRPC · Wallets",
     ownership:
-      "Strict owner of wallets, ledger entries, rates, holds, and settlement — voice workers report usage but never mutate balances.",
+      "Strict owner of wallets, ledger entries, rates, holds, and settlement. Voice workers report usage but never mutate balances.",
   },
   {
     id: "sip-webrtc",

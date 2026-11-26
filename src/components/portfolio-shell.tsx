@@ -9,20 +9,31 @@ import {
   ArrowUpRight,
   Check,
   Command,
+  Compass,
   Copy,
   FileText,
   Keyboard,
   Menu,
   Mic,
+  Terminal,
   Volume2,
   VolumeX,
   X,
 } from "lucide-react";
 import { AcousticIris } from "@/components/acoustic-iris";
+import {
+  AgentAutopilotCursor,
+  AutopilotHudBar,
+  type AutopilotStepMeta,
+  type GhostCursorTarget,
+} from "@/components/agent-autopilot-cursor";
 import { AgentDock } from "@/components/agent-dock";
 import { CommandPalette, type CommandItem } from "@/components/command-palette";
 import { ExperienceTimeline } from "@/components/experience-timeline";
+import { KineticCaptions, SignalScrollRail } from "@/components/kinetic-captions";
 import { ProjectsSection } from "@/components/projects-section";
+import { SignalTerminal } from "@/components/signal-terminal";
+import { StackSignalMatrix } from "@/components/stack-signal-matrix";
 import { StagePanel, type ActivePanelState } from "@/components/stage-panel";
 import { VoiceLab } from "@/components/voice-lab";
 import { WritingSection } from "@/components/writing-section";
@@ -63,11 +74,16 @@ export function PortfolioShell() {
   const reducedMotion = useReducedMotion();
 
   const [activeNav, setActiveNav] = useState<NavId>("about");
+  const [activeSectionId, setActiveSectionId] = useState<string>("hero");
   const [hudNotice, setHudNotice] = useState<string | null>(null);
+  const [ghostTarget, setGhostTarget] = useState<GhostCursorTarget | null>(null);
+  const [autopilotIndex, setAutopilotIndex] = useState<number | null>(null);
+  const [autopilotPaused, setAutopilotPaused] = useState(false);
   const [dockVisible, setDockVisible] = useState(false);
   const [textInputOpen, setTextInputOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<AgentPersonaId>("representative");
   const [selectedVoiceKey, setSelectedVoiceKey] = useState<AgentVoiceKey>("sarah");
@@ -79,13 +95,54 @@ export function PortfolioShell() {
 
   const highlightTimerRef = useRef<number | null>(null);
   const noticeTimerRef = useRef<number | null>(null);
+  const ghostTimerRef = useRef<number | null>(null);
+  const autopilotTimerRef = useRef<number | null>(null);
+  const autopilotSubTimersRef = useRef<number[]>([]);
   const disconnectRef = useRef<(() => Promise<void>) | null>(null);
+  const startAutopilotRef = useRef<((startAt?: number) => void) | null>(null);
+
+  const clearAutopilotSubTimers = useCallback(() => {
+    for (const id of autopilotSubTimersRef.current) {
+      window.clearTimeout(id);
+    }
+    autopilotSubTimersRef.current = [];
+  }, []);
+
+  const scheduleAutopilotSub = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      autopilotSubTimersRef.current = autopilotSubTimersRef.current.filter((t) => t !== id);
+      fn();
+    }, ms);
+    autopilotSubTimersRef.current.push(id);
+  }, []);
 
   const showHudNotice = useCallback((msg: string) => {
     setHudNotice(msg);
     if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
     noticeTimerRef.current = window.setTimeout(() => setHudNotice(null), 1800);
   }, []);
+
+  const aimGhostCursor = useCallback(
+    (targetEl: Element | null, label: string, durationMs = 1700) => {
+      if (typeof window === "undefined") return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let x = vw * 0.5;
+      let y = vh * 0.42;
+      if (targetEl) {
+        const rect = targetEl.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          x = Math.max(72, Math.min(vw - 140, rect.left + rect.width * 0.5));
+          y = Math.max(96, Math.min(vh - 120, rect.top + Math.min(rect.height * 0.35, 160)));
+        }
+      }
+      signalSound.playTick(780);
+      setGhostTarget({ x, y, label, pulseKey: Date.now() });
+      if (ghostTimerRef.current) window.clearTimeout(ghostTimerRef.current);
+      ghostTimerRef.current = window.setTimeout(() => setGhostTarget(null), durationMs);
+    },
+    []
+  );
 
   const triggerHighlight = useCallback((target: HighlightTarget) => {
     setHighlightedTarget(target);
@@ -123,8 +180,10 @@ export function PortfolioShell() {
           if (action.args.section !== "hero") {
             setActiveNav(action.args.section);
           }
+          setActiveSectionId(action.args.section);
           showHudNotice(`HUD // TARGET LOCKED → ${action.args.section.toUpperCase()}`);
           el.scrollIntoView({ behavior: "smooth", block: "start" });
+          window.setTimeout(() => aimGhostCursor(el, `LOCK ${action.args.section.toUpperCase()}`), 260);
           return { ok: true };
         }
         case "open_project": {
@@ -132,6 +191,7 @@ export function PortfolioShell() {
           const el = document.getElementById("projects");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
           triggerHighlight(action.args.projectId);
+          aimGhostCursor(el, `OPEN ${action.args.projectId.toUpperCase()}`);
           showHudNotice(`HUD // PROJECTING ${action.args.projectId.toUpperCase()}`);
           setActivePanel({
             kind: "project",
@@ -145,6 +205,7 @@ export function PortfolioShell() {
           const el = document.getElementById("projects");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
           triggerHighlight(action.args.projectId);
+          aimGhostCursor(el, `ARCH ${action.args.projectId.toUpperCase()}`);
           showHudNotice(`HUD // ARCHITECTURE · ${action.args.projectId.toUpperCase()}`);
           setActivePanel({
             kind: "project",
@@ -160,6 +221,7 @@ export function PortfolioShell() {
           showHudNotice(`HUD // WRITING · ${articleId.toUpperCase()}`);
           const el = document.getElementById("writing");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          aimGhostCursor(el, `WRITING · ${articleId.toUpperCase()}`);
           setActivePanel({ kind: "writing", articleId });
           return { ok: true };
         }
@@ -171,6 +233,7 @@ export function PortfolioShell() {
           showHudNotice(`HUD // TIMELINE · ${targetRole.toUpperCase()}`);
           const el = document.getElementById("experience");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          aimGhostCursor(el, `TIMELINE · ${targetRole.toUpperCase()}`);
           setActivePanel({ kind: "experience", roleId: targetRole });
           return { ok: true };
         }
@@ -182,6 +245,7 @@ export function PortfolioShell() {
           showHudNotice(`HUD // VOICE LAB · ${nextTopic.toUpperCase()}`);
           const el = document.getElementById("voice-lab");
           el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          aimGhostCursor(el, `VOICE LAB · ${nextTopic.toUpperCase()}`);
           setActivePanel({ kind: "skills", topic: nextTopic });
           return { ok: true };
         }
@@ -189,6 +253,7 @@ export function PortfolioShell() {
           setActiveNav("contact");
           triggerHighlight("contact-email");
           showHudNotice("HUD // DIRECT COMMS OPEN");
+          aimGhostCursor(document.getElementById("contact"), "DIRECT COMMS");
           setActivePanel({ kind: "contact" });
           return { ok: true };
         }
@@ -202,10 +267,17 @@ export function PortfolioShell() {
           showHudNotice("HUD // PROJECTION DISMISSED");
           return { ok: true };
         }
+        case "start_autopilot_tour": {
+          startAutopilotRef.current?.(action.args.startStep ?? 0);
+          return { ok: true };
+        }
         case "end_voice_session": {
+          setAutopilotIndex(null);
+          setGhostTarget(null);
           setActivePanel(null);
           setHighlightedTarget(null);
           setActiveNav("about");
+          setActiveSectionId("hero");
           showHudNotice("HUD // SESSION COMPLETE · RETURNING TO HERO");
           window.scrollTo({ top: 0, behavior: "smooth" });
           // Disconnect after returning RPC ack so LiveKit worker receives clean confirmation
@@ -218,7 +290,7 @@ export function PortfolioShell() {
         }
       }
     },
-    [flashSignalBeam, selectedRoleId, showHudNotice, triggerHighlight]
+    [aimGhostCursor, flashSignalBeam, selectedRoleId, showHudNotice, triggerHighlight]
   );
 
   const livekit = useLiveKitAgent({ onUiAction: executeUiAction });
@@ -234,14 +306,209 @@ export function PortfolioShell() {
     return () => {
       if (highlightTimerRef.current) window.clearTimeout(highlightTimerRef.current);
       if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+      if (ghostTimerRef.current) window.clearTimeout(ghostTimerRef.current);
+      if (autopilotTimerRef.current) window.clearTimeout(autopilotTimerRef.current);
+      clearAutopilotSubTimers();
     };
-  }, []);
+  }, [clearAutopilotSubTimers]);
 
-  // Scroll spy: keep top HUD reticle synced with the section currently in view
+  const AUTOPILOT_STOPS = useMemo<
+    {
+      title: string;
+      narration: string;
+      durationMs: number;
+      execute: () => void;
+    }[]
+  >(
+    () => [
+      {
+        title: "VOICE LAB · STFT & BARGE-IN",
+        narration:
+          "Live 60fps STFT waterfall spectrogram and real-time voice pipeline. Watch Silero VAD, streaming STT, LLM TTFT, and ElevenLabs TTS execute concurrently.",
+        durationMs: 5200,
+        execute: () => {
+          setActivePanel(null);
+          setActiveNav("voice-lab");
+          setActiveSectionId("voice-lab");
+          setSelectedTopic("vad");
+          triggerHighlight("voice-pipeline");
+          const el = document.getElementById("voice-lab");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          scheduleAutopilotSub(() => {
+            const simBtn = Array.from(document.querySelectorAll("#voice-lab button")).find((b) =>
+              b.textContent?.includes("Simulate Call Turn")
+            ) as HTMLButtonElement | undefined;
+            aimGhostCursor(simBtn ?? el, "TRIGGER STFT CALL TURN", 2200);
+            scheduleAutopilotSub(() => simBtn?.click(), 380);
+          }, 460);
+        },
+      },
+      {
+        title: "OPENCALLS · DUAL-PLANE TOPOLOGY",
+        narration:
+          "OpenCalls splits durable protobuf gRPC control services (Auth, Call, Knowledge-Base, Payment) from real-time LiveKit voice execution rooms.",
+        durationMs: 5400,
+        execute: () => {
+          setActivePanel(null);
+          setActiveNav("projects");
+          setActiveSectionId("projects");
+          triggerHighlight("opencalls");
+          const el = document.getElementById("projects");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          scheduleAutopilotSub(() => {
+            const traceBtn = Array.from(document.querySelectorAll("#projects button")).find((b) =>
+              b.textContent?.includes("Trace Inbound Call")
+            ) as HTMLButtonElement | undefined;
+            aimGhostCursor(traceBtn ?? el, "TRACE gRPC + LIVEKIT CALL", 2400);
+            scheduleAutopilotSub(() => traceBtn?.click(), 380);
+          }, 460);
+        },
+      },
+      {
+        title: "WRITING · INSIDE OPENCALLS",
+        narration:
+          "Published architecture field notes on Medium covering OpenCalls microservices, OpenTelemetry/SigNoz tracing, Celery + RabbitMQ scaling, and Redis Lua idempotency.",
+        durationMs: 4800,
+        execute: () => {
+          setActiveNav("writing");
+          setActiveSectionId("writing");
+          triggerHighlight("writing-notes");
+          const el = document.getElementById("writing");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          scheduleAutopilotSub(() => {
+            const briefBtn = Array.from(document.querySelectorAll("#writing button")).find((b) =>
+              b.textContent?.includes("Open briefing HUD")
+            ) as HTMLButtonElement | undefined;
+            aimGhostCursor(briefBtn ?? el, "OPEN BRIEFING HUD", 2000);
+          }, 460);
+        },
+      },
+      {
+        title: "EXPERIENCE · MULTITRACK DAW",
+        narration:
+          "Scrubbing Istekhar's engineering timeline from Founding Engineer at RUH AI to Founder at OpenCalls and invoiceo.",
+        durationMs: 4800,
+        execute: () => {
+          setActivePanel(null);
+          setActiveNav("experience");
+          setActiveSectionId("experience");
+          setSelectedRoleId("ruh-ai");
+          triggerHighlight("experience-current");
+          const el = document.getElementById("experience");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          scheduleAutopilotSub(() => {
+            aimGhostCursor(el, "SCRUB TIMELINE → OPENCALLS", 2200);
+            scheduleAutopilotSub(() => setSelectedRoleId("opencalls"), 1100);
+          }, 460);
+        },
+      },
+      {
+        title: "DIRECT COMMS · READY TO TALK",
+        narration:
+          "Reach Istekhar directly at istekharkhan46@gmail.com, inspect his resume, or click Talk to my AI to start a live WebRTC conversation.",
+        durationMs: 4400,
+        execute: () => {
+          setActivePanel(null);
+          setActiveNav("contact");
+          setActiveSectionId("contact");
+          triggerHighlight("contact-email");
+          const el = document.getElementById("contact");
+          el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          scheduleAutopilotSub(() => {
+            const emailLink = el?.querySelector('a[href^="mailto:"]') ?? el;
+            aimGhostCursor(emailLink, "DIRECT COMMS LOCKED", 2400);
+          }, 460);
+        },
+      },
+    ],
+    [aimGhostCursor, scheduleAutopilotSub, triggerHighlight]
+  );
+
+  const stopAutopilotTour = useCallback(() => {
+    if (autopilotTimerRef.current) {
+      window.clearTimeout(autopilotTimerRef.current);
+      autopilotTimerRef.current = null;
+    }
+    if (ghostTimerRef.current) {
+      window.clearTimeout(ghostTimerRef.current);
+      ghostTimerRef.current = null;
+    }
+    clearAutopilotSubTimers();
+    setAutopilotIndex(null);
+    setAutopilotPaused(false);
+    setGhostTarget(null);
+    showHudNotice("AUTOPILOT // MANUAL CONTROL RESTORED");
+  }, [clearAutopilotSubTimers, showHudNotice]);
+
+  const startAutopilotTour = useCallback(
+    (startAt = 0) => {
+      if (autopilotTimerRef.current) window.clearTimeout(autopilotTimerRef.current);
+      clearAutopilotSubTimers();
+      setActivePanel(null);
+      setMobileMenuOpen(false);
+      setAutopilotPaused(false);
+      setAutopilotIndex(Math.max(0, Math.min(AUTOPILOT_STOPS.length - 1, startAt)));
+      signalSound.playHudOpen();
+    },
+    [AUTOPILOT_STOPS.length, clearAutopilotSubTimers]
+  );
+  startAutopilotRef.current = startAutopilotTour;
+
+  // Execute current autopilot stop only when step index changes
   useEffect(() => {
-    const sections = NAV_LINKS.map((l) => document.getElementById(l.id)).filter(
-      (el): el is HTMLElement => Boolean(el)
-    );
+    if (autopilotIndex === null) return;
+    const stop = AUTOPILOT_STOPS[autopilotIndex];
+    if (!stop) {
+      setAutopilotIndex(null);
+      return;
+    }
+    clearAutopilotSubTimers();
+    stop.execute();
+    return () => {
+      clearAutopilotSubTimers();
+    };
+  }, [AUTOPILOT_STOPS, autopilotIndex, clearAutopilotSubTimers]);
+
+  // Schedule auto-advance timer separately so pausing/resuming never re-executes the current stop
+  useEffect(() => {
+    if (autopilotIndex === null || autopilotPaused) return;
+    const stop = AUTOPILOT_STOPS[autopilotIndex];
+    if (!stop) return;
+
+    autopilotTimerRef.current = window.setTimeout(() => {
+      if (autopilotIndex + 1 < AUTOPILOT_STOPS.length) {
+        setAutopilotIndex(autopilotIndex + 1);
+      } else {
+        setAutopilotIndex(null);
+        setGhostTarget(null);
+        showHudNotice("AUTOPILOT // TOUR COMPLETE");
+      }
+    }, stop.durationMs);
+
+    return () => {
+      if (autopilotTimerRef.current) {
+        window.clearTimeout(autopilotTimerRef.current);
+        autopilotTimerRef.current = null;
+      }
+    };
+  }, [AUTOPILOT_STOPS, autopilotIndex, autopilotPaused, showHudNotice]);
+
+  const autopilotStepMeta: AutopilotStepMeta | null =
+    autopilotIndex !== null && AUTOPILOT_STOPS[autopilotIndex]
+      ? {
+          index: autopilotIndex,
+          total: AUTOPILOT_STOPS.length,
+          title: AUTOPILOT_STOPS[autopilotIndex].title,
+          narration: AUTOPILOT_STOPS[autopilotIndex].narration,
+        }
+      : null;
+
+  // Scroll spy: keep top HUD reticle & right hardware fader rail synced with visible section
+  useEffect(() => {
+    const ids = ["hero", ...NAV_LINKS.map((l) => l.id)];
+    const sections = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => Boolean(el));
     if (sections.length === 0) return;
 
     const observer = new IntersectionObserver(
@@ -249,8 +516,12 @@ export function PortfolioShell() {
         const visible = entries
           .filter((e) => e.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]?.target.id) {
-          setActiveNav(visible[0].target.id as NavId);
+        const topId = visible[0]?.target.id;
+        if (topId) {
+          setActiveSectionId(topId);
+          if (topId !== "hero") {
+            setActiveNav(topId as NavId);
+          }
         }
       },
       { rootMargin: "-20% 0px -55% 0px", threshold: [0.1, 0.25, 0.5] }
@@ -260,17 +531,31 @@ export function PortfolioShell() {
     return () => observer.disconnect();
   }, []);
 
-  // Global Cmd+K / Ctrl+K command launcher shortcut
+  // Global Cmd+K / Ctrl+K shortcut, backtick (`) Signal Shell, & Escape to exit Autopilot
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inEditable =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        setTerminalOpen(false);
         setPaletteOpen((v) => !v);
+      } else if (!inEditable && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "`") {
+        e.preventDefault();
+        setPaletteOpen(false);
+        setTerminalOpen((v) => !v);
+      } else if (e.key === "Escape" && autopilotIndex !== null) {
+        e.preventDefault();
+        stopAutopilotTour();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [autopilotIndex, stopAutopilotTour]);
 
   // Line-by-line word-mask hero entrance (once on load)
   useGSAP(
@@ -499,6 +784,27 @@ export function PortfolioShell() {
   const commandItems = useMemo<CommandItem[]>(() => {
     const quick: CommandItem[] = [
       {
+        id: "cmd-autopilot",
+        group: "Voice & Quick Actions",
+        label: "Launch Auto-UI Pilot Guided Tour",
+        hint: "5 stops",
+        keywords: "autopilot tour guided walkthrough demo cursor beam",
+        icon: "radio",
+        run: () => startAutopilotTour(0),
+      },
+      {
+        id: "cmd-terminal",
+        group: "Voice & Quick Actions",
+        label: "Open Signal Shell Diagnostic Console",
+        hint: "Press `",
+        keywords: "terminal cli shell console trace redis lua ping diagnostics",
+        icon: "terminal",
+        run: () => {
+          signalSound.playHudOpen();
+          setTerminalOpen(true);
+        },
+      },
+      {
         id: "cmd-voice",
         group: "Voice & Quick Actions",
         label: "Talk to Istekhar's LiveKit Voice AI",
@@ -681,6 +987,7 @@ export function PortfolioShell() {
     handleSelectPersona,
     handleStartVoice,
     sfxEnabled,
+    startAutopilotTour,
     toggleSfx,
   ]);
 
@@ -697,6 +1004,14 @@ export function PortfolioShell() {
 
   return (
     <div ref={rootRef} className="min-h-screen bg-[#121418] text-[#EFF0F1] relative">
+      {/* Accessible skip link for keyboard navigation */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-4 focus:z-[60] focus:px-4 focus:py-2.5 focus:bg-[#FF5A1F] focus:text-[#121418] focus:font-semibold focus:text-sm"
+      >
+        Skip to content
+      </a>
+
       {/* Hidden audio attachment container for LiveKit remote voice tracks */}
       <div ref={livekit.audioContainerRef} className="sr-only" aria-hidden="true" />
 
@@ -732,7 +1047,7 @@ export function PortfolioShell() {
           <a
             href="#hero"
             onClick={() => setActivePanel(null)}
-            className="inline-flex items-center gap-3 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors shrink-0"
+            className="inline-flex items-center gap-3 min-h-11 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors shrink-0"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <polygon
@@ -798,6 +1113,20 @@ export function PortfolioShell() {
               type="button"
               onClick={() => {
                 signalSound.playHudOpen();
+                setTerminalOpen(true);
+              }}
+              aria-label="Open Signal Shell diagnostic console"
+              className="hud-btn hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#C4C8D0] hover:text-[#38D9A9] hover:border-[#38D9A9] cursor-pointer"
+              title="Open Signal Shell diagnostic console (Press `)"
+            >
+              <Terminal className="w-3.5 h-3.5 text-[#38D9A9]" />
+              <span>CLI</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                signalSound.playHudOpen();
                 setPaletteOpen(true);
               }}
               aria-label="Open command launcher"
@@ -811,7 +1140,7 @@ export function PortfolioShell() {
             <button
               type="button"
               onClick={() => setDockVisible((v) => !v)}
-              className="hud-btn inline-flex items-center gap-2 px-3 py-1.5 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#EFF0F1] hover:border-[#FF9F38] cursor-pointer"
+              className="hud-btn inline-flex items-center gap-2 min-h-10 px-3 py-2 bg-[#1A1D23] border border-[#2B303B] font-mono text-xs text-[#EFF0F1] hover:border-[#FF9F38] cursor-pointer"
             >
               <span
                 className={cn(
@@ -827,7 +1156,7 @@ export function PortfolioShell() {
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Toggle navigation menu"
               aria-expanded={mobileMenuOpen}
-              className="lg:hidden p-2 border border-[#2B303B] bg-[#1A1D23] text-[#EFF0F1] cursor-pointer"
+              className="lg:hidden min-w-11 min-h-11 grid place-items-center border border-[#2B303B] bg-[#1A1D23] text-[#EFF0F1] cursor-pointer"
             >
               {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
@@ -871,18 +1200,31 @@ export function PortfolioShell() {
                     {link.label}
                   </button>
                 ))}
-                <div className="pt-2.5 mt-1 border-t border-[#2B303B] flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      signalSound.playHudOpen();
-                      setPaletteOpen(true);
-                    }}
-                    className="text-left font-mono text-xs text-[#FF9F38] cursor-pointer"
-                  >
-                    ⌘K Quick Command Launcher
-                  </button>
+                <div className="pt-2.5 mt-1 border-t border-[#2B303B] flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        signalSound.playHudOpen();
+                        setPaletteOpen(true);
+                      }}
+                      className="text-left font-mono text-xs text-[#FF9F38] cursor-pointer"
+                    >
+                      ⌘K Launcher
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        signalSound.playHudOpen();
+                        setTerminalOpen(true);
+                      }}
+                      className="text-left font-mono text-xs text-[#38D9A9] cursor-pointer"
+                    >
+                      &gt;_ Signal CLI
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={toggleSfx}
@@ -904,19 +1246,19 @@ export function PortfolioShell() {
         </AnimatePresence>
       </header>
 
-      <main className={dockVisible ? "pb-44" : "pb-16"}>
+      <main id="main-content" className={dockVisible ? "pb-44" : "pb-16"}>
         {/* HERO — First Viewport with J.A.R.V.I.S. 3D Core */}
         <section
           id="hero"
           aria-labelledby="hero-heading"
-          className="relative max-w-7xl mx-auto px-6 md:px-10 pt-12 pb-20 md:pt-18 md:pb-24"
+          className="relative max-w-7xl mx-auto px-6 md:px-10 pt-5 pb-16 sm:pt-10 md:pt-16 md:pb-24"
         >
-          <div className="grid lg:grid-cols-[1.12fr_0.98fr] gap-12 lg:gap-10 items-center">
+          <div className="grid lg:grid-cols-[1.12fr_0.98fr] gap-5 sm:gap-8 lg:gap-10 items-center">
             {/* Left column: monumental editorial headline with word masks */}
-            <div className="min-w-0 space-y-7 lg:pr-8 lg:border-r lg:border-[#2B303B]">
+            <div className="min-w-0 space-y-3.5 sm:space-y-5 lg:space-y-7 lg:pr-8 lg:border-r lg:border-[#2B303B]">
               <h1
                 id="hero-heading"
-                className="text-[clamp(2.35rem,6.3vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.03em] text-[#EFF0F1]"
+                className="text-[clamp(2.25rem,6.3vw,5.5rem)] font-extrabold leading-[0.94] tracking-[-0.03em] text-[#EFF0F1]"
               >
                 <span className="block overflow-hidden">
                   <span className="hero-line block">Engineering</span>
@@ -929,28 +1271,36 @@ export function PortfolioShell() {
                 </span>
               </h1>
 
-              <p className="hero-reveal text-base md:text-lg text-[#C4C8D0] leading-relaxed max-w-[50ch]">
+              <p className="hero-reveal text-sm sm:text-base md:text-lg text-[#C4C8D0] leading-relaxed max-w-[50ch]">
                 {PORTFOLIO.person.heroSubcopy}
               </p>
 
-              <div className="hero-reveal flex flex-wrap items-center gap-x-6 gap-y-3 pt-2 text-sm">
+              <div className="hero-reveal flex flex-wrap items-center gap-x-5 gap-y-2 pt-1 text-sm">
+                <button
+                  type="button"
+                  onClick={() => startAutopilotTour(0)}
+                  className="inline-flex items-center gap-2 py-2 text-[#FF9F38] hover:text-[#EFF0F1] transition-colors cursor-pointer font-medium"
+                >
+                  <Compass className="w-4 h-4 text-[#FF5A1F]" />
+                  <span>Autopilot tour</span>
+                </button>
                 <a
                   href="#about"
-                  className="inline-flex items-center gap-2 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
+                  className="inline-flex items-center gap-1.5 py-2 text-[#EFF0F1] hover:text-[#FF9F38] transition-colors"
                 >
-                  <ArrowDown className="w-4 h-4 text-[#FF5A1F]" />
-                  <span>Explore my work</span>
+                  <ArrowDown className="w-4 h-4 text-[#38D9A9]" />
+                  <span>Explore</span>
                 </a>
                 <a
                   href={PORTFOLIO.person.resumeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors"
+                  className="inline-flex items-center gap-1.5 py-2 text-[#C4C8D0] hover:text-[#EFF0F1] transition-colors"
                 >
                   <FileText className="w-4 h-4 text-[#FF9F38]" />
                   <span>Resume</span>
                 </a>
-                <span className="text-[#9499A3]">
+                <span className="hidden sm:inline text-[#9499A3]">
                   {PORTFOLIO.person.name} · {PORTFOLIO.person.currentHeadline}
                 </span>
               </div>
@@ -967,7 +1317,7 @@ export function PortfolioShell() {
                 onActivate={handleStartVoice}
               />
 
-              <div className="mt-3 font-mono text-xs tracking-wider text-[#9499A3] telemetry-nums">
+              <div className="mt-2 sm:mt-3 font-mono text-xs tracking-wider text-[#9499A3] telemetry-nums">
                 CORE //{" "}
                 <span
                   className={cn(
@@ -981,8 +1331,8 @@ export function PortfolioShell() {
                   )}
                 >
                   {livekit.agentState === "offline"
-                    ? "STANDBY — BROWSE OR CONNECT LIVEKIT"
-                    : `${livekit.agentState.toUpperCase()} — READY`}
+                    ? "STANDBY · BROWSE OR CONNECT LIVEKIT"
+                    : `${livekit.agentState.toUpperCase()} · READY`}
                 </span>
               </div>
 
@@ -990,7 +1340,7 @@ export function PortfolioShell() {
               <div
                 role="radiogroup"
                 aria-label="Select LiveKit AI voice persona"
-                className="mt-4 inline-flex flex-wrap items-center justify-center gap-1 p-1 bg-[#1A1D23] border border-[#2B303B]"
+                className="mt-3 sm:mt-4 inline-flex flex-wrap items-center justify-center gap-1 p-1 bg-[#1A1D23] border border-[#2B303B]"
               >
                 {AGENT_PERSONAS.map((persona) => {
                   const active = selectedPersona === persona.id;
@@ -1003,7 +1353,7 @@ export function PortfolioShell() {
                       onClick={() => handleSelectPersona(persona.id)}
                       title={persona.description}
                       className={cn(
-                        "relative px-2.5 py-1 font-mono text-[11px] transition-colors cursor-pointer",
+                        "relative min-h-9 sm:min-h-8 px-3 py-1.5 font-mono text-[11px] transition-colors cursor-pointer",
                         active ? "text-[#EFF0F1]" : "text-[#9499A3] hover:text-[#EFF0F1]"
                       )}
                     >
@@ -1020,11 +1370,11 @@ export function PortfolioShell() {
                 })}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
+              <div className="mt-3 sm:mt-4 flex flex-wrap items-center justify-center gap-3 w-full max-w-md">
                 <button
                   type="button"
                   onClick={handleStartVoice}
-                  className="hud-btn flex-1 min-w-[170px] inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#FF5A1F] text-[#121418] font-semibold text-sm hover:bg-[#ff6d38] cursor-pointer"
+                  className="hud-btn flex-1 min-w-[160px] min-h-11 inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#FF5A1F] text-[#121418] font-semibold text-sm hover:bg-[#ff6d38] cursor-pointer"
                 >
                   <Mic className="w-4 h-4" />
                   <span>
@@ -1038,14 +1388,14 @@ export function PortfolioShell() {
                 <button
                   type="button"
                   onClick={handleOpenTextMode}
-                  className="hud-btn flex-1 min-w-[150px] inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#1A1D23] border border-[#3B4252] text-[#EFF0F1] text-sm hover:border-[#FF9F38] cursor-pointer"
+                  className="hud-btn flex-1 min-w-[140px] min-h-11 inline-flex items-center justify-center gap-2 px-5 py-3 bg-[#1A1D23] border border-[#3B4252] text-[#EFF0F1] text-sm hover:border-[#FF9F38] cursor-pointer"
                 >
                   <Keyboard className="w-4 h-4 text-[#C4C8D0]" />
                   <span>Type instead</span>
                 </button>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2 max-w-lg">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 max-w-lg">
                 {(
                   AGENT_PERSONAS.find((p) => p.id === selectedPersona)?.prompts ??
                   PORTFOLIO.starterPrompts
@@ -1054,7 +1404,7 @@ export function PortfolioShell() {
                     key={prompt}
                     type="button"
                     onClick={() => handleAskAbout(prompt)}
-                    className="hud-btn px-3 py-1.5 bg-[#1A1D23] border border-[#2B303B] text-xs text-[#C4C8D0] hover:text-[#EFF0F1] hover:border-[#38D9A9] cursor-pointer"
+                    className="hud-btn min-h-10 px-3 py-2 bg-[#1A1D23] border border-[#2B303B] text-xs text-[#C4C8D0] hover:text-[#EFF0F1] hover:border-[#38D9A9] cursor-pointer"
                   >
                     {prompt}
                   </button>
@@ -1139,71 +1489,17 @@ export function PortfolioShell() {
           highlighted={highlightedTarget === "experience-current"}
         />
 
-        {/* F. TECHNICAL STACK */}
-        <section
-          id="stack"
-          aria-labelledby="stack-heading"
-          className="py-24 md:py-32 border-t border-[#2B303B]"
-        >
-          <div className="max-w-7xl mx-auto px-6 md:px-10">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-              <h2
-                id="stack-heading"
-                className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium tracking-[-0.02em] text-[#EFF0F1]"
-              >
-                Technical Stack
-              </h2>
-              <p className="text-sm text-[#9499A3]">
-                Every capability links directly to the systems where it ships.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[#2B303B] border border-[#2B303B]">
-              {PORTFOLIO.stack.map((category) => (
-                <div key={category.id} className="bg-[#121418] p-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-[#EFF0F1] pb-3 border-b border-[#2B303B]">
-                    {category.name}
-                  </h3>
-                  <ul className="space-y-3">
-                    {category.items.map((item) => (
-                      <li
-                        key={item.name}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="text-[#C4C8D0]">{item.name}</span>
-                        {item.projectIds.length > 0 && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {item.projectIds.map((pid) => (
-                              <button
-                                key={pid}
-                                type="button"
-                                onClick={() => handleOpenProject(pid, "stack")}
-                                className="hud-btn font-mono text-[11px] px-1.5 py-0.5 bg-[#1A1D23] border border-[#2B303B] text-[#9499A3] hover:text-[#38D9A9] hover:border-[#38D9A9] cursor-pointer"
-                                title={`Inspect ${pid}`}
-                              >
-                                {pid === "opencalls"
-                                  ? "OpenCalls"
-                                  : pid === "ruh-ai-voice"
-                                    ? "RUH AI"
-                                    : "invoiceo"}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        {/* F. INTERACTIVE TECHNICAL STACK MATRIX & VISITOR BRIEFING LENS */}
+        <StackSignalMatrix
+          onOpenProject={handleOpenProject}
+          onAskAbout={handleAskAbout}
+        />
 
         {/* G. CONTACT */}
         <section
           id="contact"
           aria-labelledby="contact-heading"
-          className="py-24 md:py-32 border-t border-[#2B303B]"
+          className="py-28 md:py-36 border-t border-[#2B303B]"
         >
           <div className="max-w-7xl mx-auto px-6 md:px-10 space-y-8">
             <h2
@@ -1311,13 +1607,52 @@ export function PortfolioShell() {
       <footer className="border-t border-[#2B303B] py-8 px-6 md:px-10 text-xs text-[#9499A3]">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <span>
-            {PORTFOLIO.person.name} — {PORTFOLIO.person.role}
+            {PORTFOLIO.person.name} · {PORTFOLIO.person.role}
           </span>
           <span className="font-mono">
             LIVEKIT WEBRTC · ELEVENLABS TTS · NEXT.JS · THREE.JS · MOTION · GSAP
           </span>
         </div>
       </footer>
+
+      {/* Agentic Ghost Cursor + Sightline Targeting Beam */}
+      <AgentAutopilotCursor target={ghostTarget} />
+
+      {/* Autopilot Guided Tour Controller HUD */}
+      <AutopilotHudBar
+        step={autopilotStepMeta}
+        paused={autopilotPaused}
+        onTogglePause={() => setAutopilotPaused((p) => !p)}
+        onNext={() => {
+          if (autopilotIndex === null) return;
+          if (autopilotIndex + 1 < AUTOPILOT_STOPS.length) {
+            setAutopilotIndex(autopilotIndex + 1);
+          } else {
+            stopAutopilotTour();
+          }
+        }}
+        onStop={stopAutopilotTour}
+      />
+
+      {/* Desktop right-edge hardware telemetry scroll rail */}
+      <SignalScrollRail
+        activeSectionId={activeSectionId}
+        onJump={(id) => {
+          signalSound.playTick(660);
+          setActiveSectionId(id);
+          if (id === "hero") {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          } else {
+            handleNavClick(id as NavId, false);
+          }
+        }}
+      />
+
+      {/* Kinetic floating live captions above dock during active LiveKit voice sessions */}
+      <KineticCaptions
+        visible={livekit.connected && dockVisible}
+        line={livekit.transcript[livekit.transcript.length - 1]}
+      />
 
       {/* Iron Man Holographic HUD Popup */}
       <StagePanel
@@ -1333,6 +1668,17 @@ export function PortfolioShell() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         items={commandItems}
+      />
+
+      {/* Signal Shell Diagnostic Console (Press `) */}
+      <SignalTerminal
+        open={terminalOpen}
+        onClose={() => setTerminalOpen(false)}
+        onOpenProject={(pid) => handleOpenProject(pid, "architecture")}
+        onStartAutopilot={() => startAutopilotTour(0)}
+        onStartVoice={() => {
+          void handleStartVoice();
+        }}
       />
 
       {/* Persistent bottom Agent Dock */}

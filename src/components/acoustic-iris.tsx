@@ -7,12 +7,12 @@ import type { AgentVisualState } from "@/lib/ui-actions";
 
 interface JarvisCoreSceneProps {
   state: AgentVisualState;
-  micLevelRef: React.MutableRefObject<number>;
-  agentLevelRef: React.MutableRefObject<number>;
-  micBinsRef?: React.MutableRefObject<Uint8Array>;
-  agentBinsRef?: React.MutableRefObject<Uint8Array>;
-  pointerTargetRef: React.MutableRefObject<{ x: number; y: number }>;
-  hoveredRef: React.MutableRefObject<boolean>;
+  micLevelRef: React.RefObject<number>;
+  agentLevelRef: React.RefObject<number>;
+  micBinsRef?: React.RefObject<Uint8Array>;
+  agentBinsRef?: React.RefObject<Uint8Array>;
+  pointerTargetRef: React.RefObject<{ x: number; y: number }>;
+  hoveredRef: React.RefObject<boolean>;
   reducedMotion: boolean;
 }
 
@@ -584,10 +584,10 @@ function JarvisCoreScene({
 
 interface AcousticIrisProps {
   state: AgentVisualState;
-  micLevelRef: React.MutableRefObject<number>;
-  agentLevelRef: React.MutableRefObject<number>;
-  micBinsRef?: React.MutableRefObject<Uint8Array>;
-  agentBinsRef?: React.MutableRefObject<Uint8Array>;
+  micLevelRef: React.RefObject<number>;
+  agentLevelRef: React.RefObject<number>;
+  micBinsRef?: React.RefObject<Uint8Array>;
+  agentBinsRef?: React.RefObject<Uint8Array>;
   onActivate?: () => void;
 }
 
@@ -661,7 +661,7 @@ export function AcousticIris({
       onPointerEnter={handlePointerEnter}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
-      className="relative w-full max-w-[390px] aspect-square mx-auto select-none"
+      className="relative w-full max-w-[228px] sm:max-w-[310px] lg:max-w-[390px] aspect-square mx-auto select-none"
       role="img"
       aria-label={`J.A.R.V.I.S.-inspired holographic voice core, current state: ${state}`}
     >

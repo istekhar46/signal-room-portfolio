@@ -167,6 +167,60 @@ class SignalSoundEngine {
     osc.start(now);
     osc.stop(now + 0.09);
   }
+
+  /**
+   * Explicit user-triggered acoustic cue for the Latency Feel Lab.
+   * Plays even when ambient HUD SFX is muted because the user explicitly pressed Test.
+   */
+  public playAcousticCue(kind: "caller-eos" | "agent-first-audio"): void {
+    if (typeof window === "undefined") return;
+    try {
+      if (!this.ctx) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!AudioCtx) return;
+        this.ctx = new AudioCtx();
+      }
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
+      const ctx = this.ctx;
+      const now = ctx.currentTime;
+
+      if (kind === "caller-eos") {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(660, now + 0.065);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.075, now + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.095);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else {
+        [392, 587.33].forEach((hz, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          const start = now + idx * 0.025;
+          osc.frequency.setValueAtTime(hz, start);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.linearRampToValueAtTime(0.065, start + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.24);
+        });
+      }
+    } catch {
+      // Ignore audio policy restrictions gracefully
+    }
+  }
 }
 
 export const signalSound = new SignalSoundEngine();

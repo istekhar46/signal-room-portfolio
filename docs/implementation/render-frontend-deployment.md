@@ -69,3 +69,8 @@ frontend-only exclusion above. See [LiveKit Cloud agent deployment](livekit-clou
 for current agent, connection, validation, and rollout status. The frontend is now
 configured with server-only LiveKit credentials; the original offline verification
 above remains a record of the initial deployment.
+
+The later [AWS API migration](aws-token-api-deployment.md) moves the token/status
+routes off Render and removes its private LiveKit credentials. Render then serves
+the frontend using `NEXT_PUBLIC_API_BASE_URL`; follow that record for current
+deployment status and API ownership.

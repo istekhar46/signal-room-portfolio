@@ -59,3 +59,11 @@
 - Starting source: `a7dff2b` on `feat/interactive-acoustic-upgrades`; working tree initially clean.
 - Use `.env` via python-dotenv in a subprocess environment, not shell sourcing or secrets on command arguments. Redact credential values from captured command output.
 - Existing Cloud agent is `CA_TxwKWcpbt9ne`; use `agent deploy agent`, not another create. Do not alter the CLI's unrelated default project. Render is already configured with the user's explicit approval.
+
+### Later AWS API migration
+
+The user subsequently moved only the token/status API to the existing Lightsail
+instance `invoiceo-api-db` in Sydney. The Python agent remains on LiveKit Cloud.
+The earlier Render server credentials are superseded by a public API base URL;
+see [AWS token API deployment](aws-token-api-deployment.md) for current connection,
+cutover, and validation status.
